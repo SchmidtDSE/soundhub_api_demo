@@ -1,0 +1,5 @@
+name: core
+description: "Soundhub API [Version 0.5.0]: includes birdnet model"
+authors:
+  - https://gif.berkeley.edu/
+url: https://api.dev.wildlifesoundhub.org

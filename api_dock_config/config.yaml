@@ -1,0 +1,23 @@
+name: soundhub
+description: |
+  Wildlife Soundhub API: powering an online platform that resolves 
+  this challenge by providing streamlined tools for storing, analyzing and sharing 
+  acoustic data.
+authors:
+  - url: https://gif.berkeley.edu/
+    email: bgaley@berkeley.edu 
+
+remotes:
+  - core
+
+databases:
+  - owl
+
+# Non-remote endpoints (API Dock's own endpoints)
+endpoints:
+  - "/"                    # API metadata and information
+
+# Global restrictions (applied to all remotes unless overridden)
+restricted:
+  - route: "*"
+    method: delete 
