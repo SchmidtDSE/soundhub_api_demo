@@ -1,0 +1,45 @@
+name: owl
+description: owl-model dev database - Version 0.1
+authors:
+  - API Team
+
+tables:
+  detections:
+    uri: s3://soundhub-dev/run/results/dev/processed/detections/results_p1-dev/**/*.parquet                                                                                                                                                      
+    region: us-east-2
+
+routes:
+  - route: /recordings/{{recording_id}}/detections/
+    sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].recording_id = {{recording_id}}
+    query_params:
+      - confidence:
+          sql: "[[detections]].confidence >= {{confidence}}"
+      - scientific_name:
+          sql: "UPPER([[detections]].scientific_name) = UPPER('{{scientific_name}}')"
+      - common_name:
+          sql: "UPPER([[detections]].common_name) = UPPER('{{common_name}}')"
+      - rank:
+          sql: "[[detections]].rank = {{rank}}"
+      - start_time:
+          sql: "[[detections]].start_time >= {{start_time}}"
+      - end_time:
+          sql: "[[detections]].end_time <= {{end_time}}"
+  - route: detections/{{id}}
+    sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
+
+query_params:
+  - sort:
+      sql_append: ORDER BY {{sort}} {{direction}}
+  - direction:
+      default: ASC
+  - offset:
+      sql_append: OFFSET {{offset}}
+  - limit:
+      sql_append: LIMIT {{limit}}
+
+
+
+
+
+
+

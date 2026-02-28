@@ -14,8 +14,6 @@ downloads/
 logs/
 .toy_api/
 
-# dont push databases so user has to generate
-databases/
 
 #***************************************************************************
 # Mac
