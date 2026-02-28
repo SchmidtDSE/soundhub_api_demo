@@ -13,100 +13,63 @@ pixi run api_dock start
 
 ---
 
-## AWS Deployment
+## AWS App Runner Deployment
 
-Deploy your API to AWS App Runner for public access:
+Deploy the API to AWS App Runner for public access. See [AWS_APPRUNNER_DEPLOYMENT.md](AWS_APPRUNNER_DEPLOYMENT.md) for the full guide.
 
 ### Prerequisites
-- AWS CLI installed and configured with appropriate permissions
-- Docker installed locally
-- AWS account with ECR and App Runner access
+- AWS CLI configured with access to account `557418946771`
+- Docker with buildx support
 
-### Deploy to App Runner
+### Deploy
 
-1. **Configure the deployment script:**
-   ```bash
-   # Edit deploy.sh to set your preferred AWS region
-   # Default is us-west-2
-   ```
-
-2. **Run the deployment:**
-   ```bash
-   cd api/
-   ./deploy.sh
-   ```
-
-The script will:
-- Create an ECR repository for your Docker image
-- Build and push your Docker image to ECR
-- Create an App Runner service with auto-scaling
-- Provide you with a public HTTPS URL
-
-**Current Deployment:**
-- **Service URL**: https://kq2drpcbik.us-west-2.awsapprunner.com
-- **Service Name**: soundhub-api
-- **Service ARN**: arn:aws:apprunner:us-west-2:557418946771:service/soundhub-api/2e4411161826479c96748354339853a6
-- **Region**: us-west-2
-
-### Managing Your Deployment
-
-#### Check Service Status
 ```bash
-aws apprunner describe-service \
-    --service-arn arn:aws:apprunner:us-west-2:557418946771:service/soundhub-api/2e4411161826479c96748354339853a6 \
-    --region us-west-2
+./deploy.sh
 ```
 
-#### Stop/Pause Service (saves costs)
+The script is idempotent — it creates ECR, IAM roles, and the App Runner service on first run, and triggers a redeployment on subsequent runs. It builds with `--platform=linux/amd64` and binds to port 8080 (required by App Runner).
+
+### Redeploy After Changes
+
+Just run `./deploy.sh` again. It detects the existing service and calls `start-deployment`.
+
+### Manage the Service
+
 ```bash
-aws apprunner pause-service \
-    --service-arn arn:aws:apprunner:us-west-2:557418946771:service/soundhub-api/2e4411161826479c96748354339853a6 \
-    --region us-west-2
+# Get the service ARN
+SERVICE_ARN=$(aws apprunner list-services --region us-west-2 \
+    --query "ServiceSummaryList[?ServiceName=='soundhub-api'].ServiceArn | [0]" --output text)
+
+# Check status
+aws apprunner describe-service --service-arn $SERVICE_ARN --region us-west-2
+
+# Pause (stops instances, no compute cost)
+aws apprunner pause-service --service-arn $SERVICE_ARN --region us-west-2
+
+# Resume
+aws apprunner resume-service --service-arn $SERVICE_ARN --region us-west-2
+
+# Delete entirely
+aws apprunner delete-service --service-arn $SERVICE_ARN --region us-west-2
 ```
 
-#### Resume Service
-```bash
-aws apprunner resume-service \
-    --service-arn arn:aws:apprunner:us-west-2:557418946771:service/soundhub-api/2e4411161826479c96748354339853a6 \
-    --region us-west-2
-```
-
-#### Update Service (redeploy latest image)
-```bash
-# First push new image to ECR
-docker build -t soundhub-api .
-docker tag soundhub-api:latest 557418946771.dkr.ecr.us-west-2.amazonaws.com/soundhub-api:latest
-aws ecr get-login-password --region us-west-2 | docker login --username AWS --password-stdin 557418946771.dkr.ecr.us-west-2.amazonaws.com
-docker push 557418946771.dkr.ecr.us-west-2.amazonaws.com/soundhub-api:latest
-
-# Then start deployment
-aws apprunner start-deployment \
-    --service-arn arn:aws:apprunner:us-west-2:557418946771:service/soundhub-api/2e4411161826479c96748354339853a6 \
-    --region us-west-2
-```
-
-#### Delete Service (removes everything)
-```bash
-aws apprunner delete-service \
-    --service-arn arn:aws:apprunner:us-west-2:557418946771:service/soundhub-api/2e4411161826479c96748354339853a6 \
-    --region us-west-2
-```
-
-### Cost Estimate
-- **Small API (0.25 vCPU, 0.5 GB RAM)**: ~$15-20/month
-- **Medium API (0.5 vCPU, 1 GB RAM)**: ~$30-40/month
-- **Paused service**: $0/month (only pay for storage)
+### Cost
+- **Active** (0.5 vCPU, 1 GB): ~$15-25/month
+- **Paused**: $0 compute (ECR storage < $1/month)
 
 ---
 
-## ENDPOINT TESTS
+## Endpoint Tests
 
 ```bash
-# Basic Remote API - Working (local)
+# Local
 curl http://localhost:8000/
 
-# Test deployed API (replace with your App Runner URL)
-curl https://your-service-id.us-west-2.awsapprunner.com/
+# Local via Docker (port 8080)
+curl http://localhost:8080/
+
+# Deployed (replace with your App Runner URL)
+curl https://<SERVICE_URL>/
 ```
 
 ---
