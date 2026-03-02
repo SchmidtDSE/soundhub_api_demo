@@ -1,37 +1,38 @@
-# Demo Soundhub API Configuration
+# Wildlife Sound Hub API Proxy
 
-Demo [api-dock](https://github.com/SchmidtDSE/api_dock) configuration for a versioned soundhub-api with additional models.
+## Overview
+
+The [Wildlife Sound Hub API](https://api.dev.wildlifesoundhub.org/docs) is a comprehensive REST API for managing wildlife sound recordings, and the backbone of [Wildlife Sound Hub](https://dev.wildlifesoundhub.org/).
+
+This repo extends the soundhub-api, using [api-dock](https://github.com/SchmidtDSE/api_dock) configuration, to create a versioned soundhub-api with additional models. In particular, adding new "detections" (see `/recordings/{id}/detections/` [here](https://api.dev.wildlifesoundhub.org/docs#/recordings/read_recording_detections_recordings__id__detections__get)).
+
 
 ---
 
-## Quick Start Commands
+## Launch FastAPI
 
 ```bash
 # start up api-doc (see: api_dock_config/)
 pixi run api_dock start
+
+# sepcifiying host/port
+pixi run api-dock start --host 0.0.0.0 --port 8080
 ```
 
 ---
 
 ## AWS App Runner Deployment
 
-Deploy the API to AWS App Runner for public access. See [AWS_APPRUNNER_DEPLOYMENT.md](AWS_APPRUNNER_DEPLOYMENT.md) for the full guide.
+Deploy the API to AWS App Runner for public access. See [AWS_APPRUNNER_DEPLOYMENT.md](AWS_APPRUNNER_DEPLOYMENT.md) for the full guide. For convience the the [deploy](./deploy.sh) can be used. This script will deploy the api to apprunner, and wait for the confirmation that the deployment was successful.
 
-### Prerequisites
-- AWS CLI configured with access to account `557418946771`
-- Docker with buildx support
-
-### Deploy
 
 ```bash
 ./deploy.sh
 ```
 
-The script is idempotent — it creates ECR, IAM roles, and the App Runner service on first run, and triggers a redeployment on subsequent runs. It builds with `--platform=linux/amd64` and binds to port 8080 (required by App Runner).
+The script is idempotent — it creates ECR, IAM roles, and the App Runner service on first run, and triggers a redeployment on subsequent runs. It builds with `--platform=linux/amd64` and binds to port 8080 (required by App Runner). 
 
-### Redeploy After Changes
-
-Just run `./deploy.sh` again. It detects the existing service and calls `start-deployment`.
+To redeploy after changes simply run `./deploy.sh` again. It detects the existing service and calls `start-deployment`.
 
 ### Manage the Service
 
@@ -56,21 +57,6 @@ aws apprunner delete-service --service-arn $SERVICE_ARN --region us-west-2
 ### Cost
 - **Active** (0.5 vCPU, 1 GB): ~$15-25/month
 - **Paused**: $0 compute (ECR storage < $1/month)
-
----
-
-## Endpoint Tests
-
-```bash
-# Local
-curl http://localhost:8000/
-
-# Local via Docker (port 8080)
-curl http://localhost:8080/
-
-# Deployed (replace with your App Runner URL)
-curl https://<SERVICE_URL>/
-```
 
 ---
 
