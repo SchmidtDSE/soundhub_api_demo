@@ -60,6 +60,30 @@ aws apprunner delete-service --service-arn $SERVICE_ARN --region us-west-2
 
 ---
 
+## Development
+
+**Build and run locally with Docker:**
+
+```bash
+# Build local Docker image (requires linux/amd64 platform for pixi compatibility)
+docker buildx build --platform=linux/amd64 -t soundhub-api:local .
+
+# Run container locally (with AWS credentials for S3 access)
+docker run -p 8080:8080 \
+  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+  -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+  -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+  soundhub-api:local
+
+# Test
+curl http://localhost:8080/
+```
+
+**Note:** Even on Apple Silicon Macs, local Docker builds must use `--platform=linux/amd64` because the pixi configuration supports `linux-64` but not `linux-aarch64` for the required conda dependencies.
+
+---
+
 ## License
 
 BSD 3-Clause

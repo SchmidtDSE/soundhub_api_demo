@@ -1,4 +1,4 @@
-FROM --platform=linux/amd64 debian:bookworm-slim
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ ENV PATH="/root/.pixi/bin:${PATH}"
 COPY pyproject.toml pixi.lock ./
 
 # Install dependencies using lock file
-RUN pixi install --locked
+RUN pixi install
 
 # Copy api_dock configuration
 COPY api_dock_config/ api_dock_config/

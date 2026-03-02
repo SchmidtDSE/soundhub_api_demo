@@ -41,8 +41,14 @@ aws ecr get-login-password --region us-west-2 | \
 
 ### 3. Build Docker Image
 
+**For AWS App Runner (linux/amd64):**
 ```bash
 docker buildx build --platform=linux/amd64 -t soundhub-api .
+```
+
+**For Local Development:**
+```bash
+docker buildx build --platform=linux/amd64 -t soundhub-api:local .
 ```
 
 ### 4. Tag and Push
@@ -214,9 +220,27 @@ aws apprunner delete-service --service-arn $SERVICE_ARN --region us-west-2
 
 ### Local Docker test
 
+**Testing AWS build locally:**
 ```bash
 docker buildx build --platform=linux/amd64 -t soundhub-api .
-docker run --platform=linux/amd64 -p 8080:8080 soundhub-api
+docker run -p 8080:8080 \
+  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+  -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+  -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+  soundhub-api
+curl http://localhost:8080/
+```
+
+**Testing local build:**
+```bash
+docker buildx build --platform=linux/amd64 -t soundhub-api:local .
+docker run -p 8080:8080 \
+  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+  -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+  -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+  soundhub-api:local
 curl http://localhost:8080/
 ```
 
