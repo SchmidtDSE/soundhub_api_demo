@@ -77,8 +77,8 @@ aws iam put-role-policy \
             "Effect": "Allow",
             "Action": ["s3:GetObject", "s3:ListBucket"],
             "Resource": [
-                "arn:aws:s3:::soundhub-dev",
-                "arn:aws:s3:::soundhub-dev/*"
+                "arn:aws:s3:::dse-soundhub",
+                "arn:aws:s3:::dse-soundhub/*"
             ]
         }]
     }'
