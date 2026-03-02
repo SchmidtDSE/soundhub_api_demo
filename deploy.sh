@@ -174,4 +174,4 @@ SERVICE_URL=$(aws apprunner describe-service \
 echo ""
 echo "==> Deployment complete!"
 echo "    URL: https://${SERVICE_URL}/"
-echo "    Test: curl https://${SERVICE_URL}/"
+echo "    Test: curl https://${SERVICE_URL}/owl/latest/recordings/3/detections?limit=5&sort=confidence&direction=desc"
