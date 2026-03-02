@@ -7,7 +7,7 @@ This repo extends the soundhub-api, using [api-dock](https://github.com/SchmidtD
 
 ## Endpoints
 
-- **Base API**: https://eshpezgjnn.us-west-2.awsapprunner.com/
+- **Base API**: https://eshpezgjnn.us-west-2.awsapprunner.com
 - **Core SoundHub API**: https://eshpezgjnn.us-west-2.awsapprunner.com/core/latest
 - **PNW Owl Detections**: https://eshpezgjnn.us-west-2.awsapprunner.com/owl/latest
 
@@ -30,7 +30,7 @@ This repo extends the soundhub-api, using [api-dock](https://github.com/SchmidtD
 - `offset` - Number of results to skip
 - `limit` - Maximum number of results to return
 
-Example:
+**Example**:
 
 ```bash
  curl "https://eshpezgjnn.us-west-2.awsapprunner.com/owl/latest/recordings/3/detections?limit=5&sort=confidence&direction=desc"
@@ -122,9 +122,6 @@ aws apprunner delete-service --service-arn $SERVICE_ARN --region us-west-2
 ### Cost
 - **Active** (0.5 vCPU, 1 GB): ~$15-25/month
 - **Paused**: $0 compute (ECR storage < $1/month)
-
----
-
 
 ---
 
