@@ -5,8 +5,8 @@ authors:
 
 tables:
   detections:
-    uri: s3://soundhub-dev/run/results/dev/processed/detections/results_p1-dev/**/*.parquet                                                                                                                                                      
-    region: us-east-2
+    uri: s3://dse-soundhub/run/results/dev/processed/detections/results_p1-dev/**/*.parquet
+    region: us-west-2
 
 routes:
   - route: /recordings/{{recording_id}}/detections/
