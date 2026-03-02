@@ -1,23 +1,88 @@
 # Wildlife Sound Hub API Proxy
 
-## Overview
-
 The [Wildlife Sound Hub API](https://api.dev.wildlifesoundhub.org/docs) is a comprehensive REST API for managing wildlife sound recordings, and the backbone of [Wildlife Sound Hub](https://dev.wildlifesoundhub.org/).
 
 This repo extends the soundhub-api, using [api-dock](https://github.com/SchmidtDSE/api_dock) configuration, to create a versioned soundhub-api with additional models. In particular, adding new "detections" (see `/recordings/{id}/detections/` [here](https://api.dev.wildlifesoundhub.org/docs#/recordings/read_recording_detections_recordings__id__detections__get)).
 
 
----
+## Endpoints
 
-## Launch FastAPI
+- **Base API**: https://eshpezgjnn.us-west-2.awsapprunner.com/
+- **Core SoundHub API**: https://eshpezgjnn.us-west-2.awsapprunner.com/core/latest
+- **PNW Owl Detections**: https://eshpezgjnn.us-west-2.awsapprunner.com/owl/latest
+
+
+## PNW Owl Detections
+
+[Pacific Northwest Owl detections](https://github.com/zjruff/Shiny_PNW-Cnet) have been added to the core SoundHub API as described in the [detections endpoint documentation](https://api.dev.wildlifesoundhub.org/docs#/recordings/read_recording_detections_recordings__id__detections__get).
+
+**Endpoint**: `GET /recordings/{recording_id}/detections`
+
+**Query Parameters**:
+- `confidence` - Filter by minimum confidence level
+- `scientific_name` - Filter by scientific name (case-insensitive)
+- `common_name` - Filter by common name (case-insensitive)
+- `rank` - Filter by detection rank
+- `start_time` - Filter by minimum start time
+- `end_time` - Filter by maximum end time
+- `sort` - Sort field for results
+- `direction` - Sort direction (ASC/DESC, default: ASC)
+- `offset` - Number of results to skip
+- `limit` - Maximum number of results to return
+
+Example:
 
 ```bash
-# start up api-doc (see: api_dock_config/)
-pixi run api_dock start
+ curl "https://eshpezgjnn.us-west-2.awsapprunner.com/owl/latest/recordings/3/detections?limit=5&sort=confidence&direction=desc"
+ ```
 
-# sepcifiying host/port
-pixi run api-dock start --host 0.0.0.0 --port 8080
+**Returns**: Array of detection objects
+
+```json
+[
+  {
+    "id": "string - Unique detection identifier",
+    "common_name": "string - Common name of detected species",
+    "scientific_name": "string - Scientific name of detected species",
+    "class": "string - Species classification code used by PNW OWL",
+    "confidence": "float - Detection confidence score (0-1)",
+    "rank": "integer - Detection rank/priority",
+    "start_time": "float - Detection start time in seconds",
+    "end_time": "float - Detection end time in seconds",
+    "recording_id": "integer - ID of the source recording"
+  }
+]
 ```
+
+---
+
+# Development
+
+For local development, a fastapi instance  can be launched directly using [api-dock](https://github.com/SchmidtDSE/api_dock)),
+
+```bash
+pixi run api_dock start --port 8080
+```
+
+or using docker
+
+```bash
+# Build local Docker image (requires linux/amd64 platform for pixi compatibility)
+docker buildx build --platform=linux/amd64 -t soundhub-api:local .
+
+# Run container locally (with AWS credentials for S3 access)
+docker run -p 8080:8080 \
+  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+  -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
+  -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+  soundhub-api:local
+
+# Test
+curl "http://localhost:8080/owl/latest/recordings/123/detections?limit=10"
+```
+
+After changes are made, the api can be (re)deployed using AWS App Runner.
 
 ---
 
@@ -60,27 +125,6 @@ aws apprunner delete-service --service-arn $SERVICE_ARN --region us-west-2
 
 ---
 
-## Development
-
-**Build and run locally with Docker:**
-
-```bash
-# Build local Docker image (requires linux/amd64 platform for pixi compatibility)
-docker buildx build --platform=linux/amd64 -t soundhub-api:local .
-
-# Run container locally (with AWS credentials for S3 access)
-docker run -p 8080:8080 \
-  -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
-  -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
-  -e AWS_SESSION_TOKEN="$AWS_SESSION_TOKEN" \
-  -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
-  soundhub-api:local
-
-# Test
-curl http://localhost:8080/
-```
-
-**Note:** Even on Apple Silicon Macs, local Docker builds must use `--platform=linux/amd64` because the pixi configuration supports `linux-64` but not `linux-aarch64` for the required conda dependencies.
 
 ---
 
