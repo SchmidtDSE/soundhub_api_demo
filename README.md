@@ -9,7 +9,7 @@ This repo extends the soundhub-api, using [api-dock](https://github.com/SchmidtD
 
 - **Base API**: https://eshpezgjnn.us-west-2.awsapprunner.com
 - **Core SoundHub API**: https://eshpezgjnn.us-west-2.awsapprunner.com/core/latest
-- **PNW Owl Detections**: https://eshpezgjnn.us-west-2.awsapprunner.com/owl/latest
+- **PNW Owl Detections**: https://eshpezgjnn.us-west-2.awsapprunner.com/owl/latest/recordings/{recording_id}/detections
 
 
 ## PNW Owl Detections
