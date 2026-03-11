@@ -8,6 +8,18 @@ tables:
     uri: s3://dse-soundhub/run/results/dev/processed/detections/results_p1-dev/**/*.parquet
     region: us-west-2
 
+# authentication:
+#   key: "__Secure-authjs.session-token"
+#   aws_secret_name: "dse-soundhub-api/soundhub-tokens"
+#   aws_region: "us-west-2"  # Optional, defaults to us-west-2
+#   refresh_interval: 300    # Cache TTL in seconds
+
+# authentication:
+#     key: "__Secure-authjs.session-token"
+#     filepath: ".tokens"
+#     encrypted: true  # default
+
+  
 routes:
   - route: /recordings/{{recording_id}}/detections/
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].recording_id = {{recording_id}}

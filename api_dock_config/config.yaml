@@ -1,11 +1,11 @@
 name: soundhub
 description: |
-  Wildlife Soundhub API: powering an online platform that resolves 
-  this challenge by providing streamlined tools for storing, analyzing and sharing 
-  acoustic data.
+  Wildlife Soundhub API: powering an online platform for storing, analyzing and sharing bioacoustic data.
 authors:
   - url: https://gif.berkeley.edu/
     email: bgaley@berkeley.edu 
+  - url: https://dse.berkeley.edu/
+    email: bguzder-williams@berkeley.edu 
 
 remotes:
   - core
