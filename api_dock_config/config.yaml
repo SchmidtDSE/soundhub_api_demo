@@ -12,6 +12,7 @@ remotes:
 
 databases:
   - owl
+  - birdnet
 
 # Non-remote endpoints (API Dock's own endpoints)
 endpoints:

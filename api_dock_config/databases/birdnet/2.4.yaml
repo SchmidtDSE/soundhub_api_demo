@@ -1,11 +1,11 @@
-name: owl
-description: owl-model dev database - Version 0.1
+name: birdnet
+description: BirdNET v2.4 detection database - Version 0.1
 authors:
   - API Team
 
 tables:
   detections:
-    uri: s3://dse-soundhub/run/results/dev/processed/detections/results_p1-dev/**/*.parquet
+    uri: s3://dse-soundhub/public/birdnet/v2p4/detections/results_p1-test/**/*.parquet
     region: us-west-2
 
 routes:
@@ -18,8 +18,6 @@ routes:
           sql: "UPPER([[detections]].scientific_name) = UPPER('{{scientific_name}}')"
       - common_name:
           sql: "UPPER([[detections]].common_name) = UPPER('{{common_name}}')"
-      - rank:
-          sql: "[[detections]].rank = {{rank}}"
       - start_time:
           sql: "[[detections]].start_time >= {{start_time}}"
       - end_time:
@@ -36,10 +34,3 @@ query_params:
       sql_append: OFFSET {{offset}}
   - limit:
       sql_append: LIMIT {{limit}}
-
-
-
-
-
-
-
