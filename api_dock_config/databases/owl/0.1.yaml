@@ -5,8 +5,9 @@ authors:
 
 tables:
   detections:
-    uri: s3://dse-soundhub/run/results/dev/processed/detections/results_p1-dev/**/*.parquet
+    uri: s3://dse-soundhub/public/owl/v4/detections/results_p1-test/**/*.parquet
     region: us-west-2
+    public: true
 
 routes:
   - route: /recordings/{{recording_id}}/detections/
@@ -24,8 +25,10 @@ routes:
           sql: "[[detections]].start_time >= {{start_time}}"
       - end_time:
           sql: "[[detections]].end_time <= {{end_time}}"
-  - route: detections/{{id}}
+  - route: /detections/{{id}}
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
+  - route: detections/
+    sql: SELECT [[detections]].id FROM [[detections]]
 
 query_params:
   - sort:

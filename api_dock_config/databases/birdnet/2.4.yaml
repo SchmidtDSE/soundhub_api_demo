@@ -7,6 +7,7 @@ tables:
   detections:
     uri: s3://dse-soundhub/public/birdnet/v2p4/detections/results_p1-test/**/*.parquet
     region: us-west-2
+    public: true
 
 routes:
   - route: /recordings/{{recording_id}}/detections/
@@ -18,12 +19,16 @@ routes:
           sql: "UPPER([[detections]].scientific_name) = UPPER('{{scientific_name}}')"
       - common_name:
           sql: "UPPER([[detections]].common_name) = UPPER('{{common_name}}')"
+      - rank:
+          sql: "[[detections]].rank = {{rank}}"
       - start_time:
           sql: "[[detections]].start_time >= {{start_time}}"
       - end_time:
           sql: "[[detections]].end_time <= {{end_time}}"
   - route: detections/{{id}}
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
+  - route: detections/
+    sql: SELECT [[detections]].id FROM [[detections]]
 
 query_params:
   - sort:
