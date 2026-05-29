@@ -6,11 +6,15 @@ build-backend = "setuptools.build_meta"
 name = "soundhub_api"
 version = "0.0.1"
 readme = "README.md"
-dependencies = ["api_dock>=0.4.8"]
+dependencies = ["api_dock>=0.4.9"]
 
 [tool.pixi.project]
 channels = ["conda-forge"]
 platforms = ["linux-64", "linux-aarch64", "osx-64", "osx-arm64"]
 
+# [tool.pixi.pypi-dependencies]
+# api_dock = { path = "../temp_repos/api_dock/api_dock", editable = true }
+
 [tool.pixi.tasks]
 api_dock = "api-dock"
+
