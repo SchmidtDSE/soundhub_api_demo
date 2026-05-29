@@ -22,3 +22,7 @@ endpoints:
 restricted:
   - route: "*"
     method: delete 
+
+# Additional Settings
+settings:
+    add_trailing_slash: false
