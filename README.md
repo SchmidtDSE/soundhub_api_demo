@@ -123,6 +123,30 @@ aws apprunner delete-service --service-arn $SERVICE_ARN --region us-west-2
 - **Active** (0.5 vCPU, 1 GB): ~$15-25/month
 - **Paused**: $0 compute (ECR storage < $1/month)
 
+--
+
+## Testing
+
+Endpoint smoke tests live in `api_tests/` and are driven by `api_tests/endpoints_config.yaml`. Results are written to `api_tests/results/endpoints-<target>.md`.
+
+**Run against local dev server** (start the server first):
+
+```bash
+# launch server
+pixi run api_dock start --port 8000
+
+# test local dev server
+pixi run python api_tests/endpoints_tests.py
+
+# test deployed API
+pixi run python api_tests/endpoints_tests.py -n deployed
+
+# run with a custom config or output path
+pixi run python api_tests/endpoints_tests.py -c path/to/config.yaml -o path/to/results.md
+```
+
+Results are written to `api_tests/results/endpoints-local.md` (or `endpoints-deployed.md` for the deployed target).
+
 ---
 
 ## License
