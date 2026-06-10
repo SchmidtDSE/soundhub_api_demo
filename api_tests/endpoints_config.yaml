@@ -1,0 +1,292 @@
+# endpoints_config.yaml
+#
+# Endpoint configuration for endpoints_tests.py.
+#
+# Usage:
+#   pixi run python api_tests/endpoints_tests.py              # (uses default target) → results/endpoints-local.md
+#   pixi run python api_tests/endpoints_tests.py -n deployed  # (named target) → results/endpoints-deployed.md
+
+
+# ── Targets ───────────────────────────────────────────────────────────────────
+# Add named base URLs here. "default" sets which one runs when -n is omitted.
+
+targets:
+  default: local
+  local: http://localhost:8000
+  deployed: https://eshpezgjnn.us-west-2.awsapprunner.com
+
+
+# ── Output ────────────────────────────────────────────────────────────────────
+
+
+
+# ── Discovery ─────────────────────────────────────────────────────────────────
+# Steps run in order before any suite. Use {var_name} to reference IDs found
+# in earlier steps. If a required ID is missing the step is skipped.
+
+discovery:
+  project_id:
+    path: /core/latest/projects/
+    field: id
+
+  deployment_id:
+    path: /core/latest/deployments/
+    field: id
+
+  recording_id:
+    path: /core/latest/recordings/
+    field: id
+
+  revision_id:
+    path: /core/latest/revisions/
+    field: id
+
+  obs_id:
+    path: /core/latest/recordings/{recording_id}/observations/
+    field: id
+    requires: [recording_id]
+
+  birdnet_detection_id:
+    path: /birdnet/latest/detections/
+    params: {limit: "1"}
+    field: id
+
+  birdnet_recording_id:
+    path: /birdnet/latest/detections/{birdnet_detection_id}
+    field: recording_id
+    requires: [birdnet_detection_id]
+
+  owl_detection_id:
+    path: /owl/latest/detections/
+    params: {limit: "1"}
+    field: id
+
+  owl_recording_id:
+    path: /owl/latest/detections/{owl_detection_id}
+    field: recording_id
+    requires: [owl_detection_id]
+
+
+# ── Suites ────────────────────────────────────────────────────────────────────
+# Each suite becomes a section in the output markdown. Tests run in order.
+# Use {var_name} in path/params/label to substitute discovered IDs.
+# Add requires: [var_name, ...] to skip a test when an ID wasn't found.
+
+suites:
+
+  - name: Core Proxy
+    tests:
+
+      # Deployments
+      - label: GET /core/latest/deployments/
+        path: /core/latest/deployments/
+
+      - label: GET /core/latest/deployments/{deployment_id}
+        path: /core/latest/deployments/{deployment_id}
+        requires: [deployment_id]
+
+      - label: GET /core/latest/deployments/fields/name/?distinct=true
+        path: /core/latest/deployments/fields/name/
+        params: {distinct: "true"}
+
+      # Projects
+      - label: GET /core/latest/projects/
+        path: /core/latest/projects/
+
+      - label: GET /core/latest/projects/{project_id}
+        path: /core/latest/projects/{project_id}
+        requires: [project_id]
+
+      - label: GET /core/latest/projects/{project_id}/observations/
+        path: /core/latest/projects/{project_id}/observations/
+        requires: [project_id]
+
+      - label: GET /core/latest/projects/{project_id}/deployments/
+        path: /core/latest/projects/{project_id}/deployments/
+        requires: [project_id]
+
+      - label: GET /core/latest/projects/{project_id}/recordings/
+        path: /core/latest/projects/{project_id}/recordings/
+        requires: [project_id]
+
+      - label: GET /core/latest/projects/{project_id}/users/
+        path: /core/latest/projects/{project_id}/users/
+        requires: [project_id]
+
+      - label: GET /core/latest/projects/agg/
+        path: /core/latest/projects/agg/
+
+      # Recordings
+      - label: GET /core/latest/recordings/
+        path: /core/latest/recordings/
+
+      - label: GET /core/latest/recordings/{recording_id}
+        path: /core/latest/recordings/{recording_id}
+        requires: [recording_id]
+
+      - label: GET /core/latest/recordings/{recording_id}/detections/
+        path: /core/latest/recordings/{recording_id}/detections/
+        requires: [recording_id]
+
+      - label: GET /core/latest/recordings/{recording_id}/detections/?confidence=0.8
+        path: /core/latest/recordings/{recording_id}/detections/
+        params: {confidence: "0.8"}
+        requires: [recording_id]
+
+      - label: GET /core/latest/recordings/{recording_id}/ogg?start=0&end=5
+        path: /core/latest/recordings/{recording_id}/ogg
+        params: {start: "0", end: "5"}
+        note: "audio endpoint — expect binary or redirect"
+        requires: [recording_id]
+
+      - label: GET /core/latest/recordings/{recording_id}/observations/
+        path: /core/latest/recordings/{recording_id}/observations/
+        requires: [recording_id]
+
+      - label: GET /core/latest/recordings/{recording_id}/species/
+        path: /core/latest/recordings/{recording_id}/species/
+        requires: [recording_id]
+
+      # Revisions
+      - label: GET /core/latest/revisions/
+        path: /core/latest/revisions/
+
+      - label: GET /core/latest/revisions/csv
+        path: /core/latest/revisions/csv
+        note: "CSV response expected"
+
+      - label: GET /core/latest/revisions/{revision_id}
+        path: /core/latest/revisions/{revision_id}
+        requires: [revision_id]
+
+      # Users
+      - label: GET /core/latest/users/
+        path: /core/latest/users/
+
+      - label: GET /core/latest/users/me
+        path: /core/latest/users/me
+        note: "expect 401 — requires auth cookie"
+
+      # Reference data
+      - label: GET /core/latest/arumount/
+        path: /core/latest/arumount/
+
+      - label: GET /core/latest/arustatus/
+        path: /core/latest/arustatus/
+
+      - label: GET /core/latest/featuretypes/
+        path: /core/latest/featuretypes/
+
+      - label: GET /core/latest/frequencies/
+        path: /core/latest/frequencies/
+
+      - label: GET /core/latest/sensorlayouts/
+        path: /core/latest/sensorlayouts/
+
+      - label: GET /core/latest/taxa/
+        path: /core/latest/taxa/
+
+      - label: GET /core/latest/species/
+        path: /core/latest/species/
+
+      - label: GET /core/latest/species/?q=owl
+        path: /core/latest/species/
+        params: {q: "owl"}
+
+      # Detections
+      - label: GET /core/latest/detections/?count=true
+        path: /core/latest/detections/
+        params: {count: "true"}
+
+      - label: GET /core/latest/detections/?deployment={deployment_id}&confidence=0.5
+        path: /core/latest/detections/
+        params: {deployment: "{deployment_id}", confidence: "0.5"}
+        requires: [deployment_id]
+
+      - label: GET /core/latest/detections/?common_name=owl
+        path: /core/latest/detections/
+        params: {common_name: "owl"}
+
+      # Auth-required
+      - label: GET /core/latest/user-projects/
+        path: /core/latest/user-projects/
+        note: "expect 401 — requires auth cookie"
+
+      # Observations (obs_id discovered from project observations during discovery phase)
+      - label: GET /core/latest/observations/{obs_id}
+        path: /core/latest/observations/{obs_id}
+        requires: [obs_id]
+
+
+  - name: Birdnet Database
+    tests:
+
+      - label: GET /birdnet/latest/detections/
+        path: /birdnet/latest/detections/
+
+      - label: GET /birdnet/latest/detections/?limit=5
+        path: /birdnet/latest/detections/
+        params: {limit: "5"}
+
+      - label: GET /birdnet/latest/detections/?limit=3&sort=id&direction=DESC
+        path: /birdnet/latest/detections/
+        params: {limit: "3", sort: "id", direction: "DESC"}
+
+      - label: GET /birdnet/latest/detections/?limit=3&offset=3
+        path: /birdnet/latest/detections/
+        params: {limit: "3", offset: "3"}
+
+      - label: GET /birdnet/latest/detections/{birdnet_detection_id}
+        path: /birdnet/latest/detections/{birdnet_detection_id}
+        requires: [birdnet_detection_id]
+
+      - label: GET /birdnet/latest/recordings/{birdnet_recording_id}/detections/
+        path: /birdnet/latest/recordings/{birdnet_recording_id}/detections/
+        requires: [birdnet_recording_id]
+
+      - label: GET /birdnet/latest/recordings/{birdnet_recording_id}/detections/?confidence=0.8
+        path: /birdnet/latest/recordings/{birdnet_recording_id}/detections/
+        params: {confidence: "0.8"}
+        requires: [birdnet_recording_id]
+
+      - label: GET /birdnet/latest/recordings/{birdnet_recording_id}/detections/?sort=confidence&direction=DESC
+        path: /birdnet/latest/recordings/{birdnet_recording_id}/detections/
+        params: {sort: "confidence", direction: "DESC"}
+        requires: [birdnet_recording_id]
+
+
+  - name: Owl Database
+    tests:
+
+      - label: GET /owl/latest/detections/
+        path: /owl/latest/detections/
+
+      - label: GET /owl/latest/detections/?limit=5
+        path: /owl/latest/detections/
+        params: {limit: "5"}
+
+      - label: GET /owl/latest/detections/?limit=3&sort=id&direction=DESC
+        path: /owl/latest/detections/
+        params: {limit: "3", sort: "id", direction: "DESC"}
+
+      - label: GET /owl/latest/detections/?limit=3&offset=3
+        path: /owl/latest/detections/
+        params: {limit: "3", offset: "3"}
+
+      - label: GET /owl/latest/detections/{owl_detection_id}
+        path: /owl/latest/detections/{owl_detection_id}
+        requires: [owl_detection_id]
+
+      - label: GET /owl/latest/recordings/{owl_recording_id}/detections/
+        path: /owl/latest/recordings/{owl_recording_id}/detections/
+        requires: [owl_recording_id]
+
+      - label: GET /owl/latest/recordings/{owl_recording_id}/detections/?confidence=0.8
+        path: /owl/latest/recordings/{owl_recording_id}/detections/
+        params: {confidence: "0.8"}
+        requires: [owl_recording_id]
+
+      - label: GET /owl/latest/recordings/{owl_recording_id}/detections/?sort=confidence&direction=DESC
+        path: /owl/latest/recordings/{owl_recording_id}/detections/
+        params: {sort: "confidence", direction: "DESC"}
+        requires: [owl_recording_id]
