@@ -20,6 +20,7 @@ License: BSD 3-Clause
 # IMPORTS
 #
 import json
+import os
 import re
 import sys
 from collections import Counter
@@ -116,17 +117,19 @@ def main(config: str, name: Optional[str], out: Optional[str]) -> None:
     _log(f"Config : {config}", log)
     _log(f"Output : {out_path}\n", log)
 
+    global_cookies = _resolve_cookies(cfg.get("cookies", []))
+
     client = httpx.Client(base_url=base_url, follow_redirects=False, timeout=30)
     results: List[Result] = []
 
     _log("Discovering IDs from live data...", log)
-    ids = _discover_ids(client, cfg.get("discovery", {}), log)
+    ids = _discover_ids(client, cfg.get("discovery", {}), global_cookies, log)
     for k, v in ids.items():
         _log(f"  {CYAN}{k}{RESET} = {v}", log)
 
     for suite in cfg.get("suites", []):
         _log(f"\nRunning: {suite['name']}...", log)
-        _run_suite(client, suite, ids, results, log)
+        _run_suite(client, suite, ids, global_cookies, results, log)
 
     client.close()
 
@@ -180,7 +183,12 @@ def _resolve_target(cfg: Dict[str, Any], name: Optional[str]) -> tuple:
     return url.rstrip("/"), resolved_name
 
 
-def _discover_ids(client: httpx.Client, discovery: Dict[str, Any], log: List[str]) -> Dict[str, Any]:
+def _discover_ids(
+    client: httpx.Client,
+    discovery: Dict[str, Any],
+    cookies: Dict[str, str],
+    log: List[str],
+) -> Dict[str, Any]:
     """Run discovery steps in YAML order, substituting already-found IDs into paths."""
     ids: Dict[str, Any] = {}
 
@@ -197,7 +205,7 @@ def _discover_ids(client: httpx.Client, discovery: Dict[str, Any], log: List[str
         field_name = step.get("field", "id")
 
         try:
-            r = client.get(path, params=params, timeout=15)
+            r = client.get(path, params=params, cookies=cookies, timeout=15)
             ids[id_name] = _extract_first_field(r.json(), field_name)
         except Exception:
             ids[id_name] = None
@@ -209,11 +217,13 @@ def _run_suite(
     client: httpx.Client,
     suite: Dict[str, Any],
     ids: Dict[str, Any],
+    global_cookies: Dict[str, str],
     results: List[Result],
     log: List[str],
 ) -> None:
     """Run all tests in a suite, substituting IDs and skipping where required IDs are absent."""
     section = suite["name"]
+    cookies = {**global_cookies, **_resolve_cookies(suite.get("cookies", []))}
 
     for test in suite.get("tests", []):
         requires = test.get("requires", [])
@@ -227,7 +237,7 @@ def _run_suite(
         label = _substitute(test.get("label", test["path"]), ids)
         params = {k: _substitute(str(v), ids) for k, v in test.get("params", {}).items()}
 
-        _hit(client, results, label, path, params or None, test.get("note"), section=section, log=log)
+        _hit(client, results, label, path, params or None, test.get("note"), section=section, cookies=cookies, log=log)
 
 
 def _hit(
@@ -238,6 +248,7 @@ def _hit(
     params: Optional[Dict[str, Any]] = None,
     note: Optional[str] = None,
     section: str = "",
+    cookies: Optional[Dict[str, str]] = None,
     log: Optional[List[str]] = None,
 ) -> Optional[httpx.Response]:
     """Make a GET request, append a Result, and print progress."""
@@ -246,7 +257,7 @@ def _hit(
         full_url += "?" + "&".join(f"{k}={v}" for k, v in params.items())
 
     try:
-        resp = client.get(path, params=params)
+        resp = client.get(path, params=params, cookies=cookies or {})
     except httpx.RequestError as exc:
         results.append(Result(label=label, url=full_url, section=section, error=str(exc), note=note))
         _log(f"  {RED}ERR{RESET}  {label}", log or [])
@@ -267,6 +278,19 @@ def _hit(
     color = GREEN if resp.status_code < 400 else (YELLOW if resp.status_code < 500 else RED)
     _log(f"  {color}{resp.status_code}{RESET}  {label}", log or [])
     return resp
+
+
+def _resolve_cookies(cookie_list: List[Dict[str, str]]) -> Dict[str, str]:
+    """Resolve a cookies list from config, expanding env: prefixed values from the environment."""
+    result = {}
+    for entry in cookie_list:
+        key = entry.get("key", "")
+        value = entry.get("value", "")
+        if value.startswith("env:"):
+            value = os.environ.get(value[4:], "")
+        if key and value:
+            result[key] = value
+    return result
 
 
 def _substitute(template: str, ids: Dict[str, Any]) -> str:

@@ -16,6 +16,15 @@ targets:
   deployed: https://eshpezgjnn.us-west-2.awsapprunner.com
 
 
+# ── Cookies ───────────────────────────────────────────────────────────────────
+# Applied to all requests (discovery + all suites). Use env: prefix to read
+# from an environment variable. Suite-level cookies merge on top of these.
+
+cookies:
+  - key: __Secure-authjs.session-token
+    value: "env:SOUNDHUB_SESSION_TOKEN"
+
+
 # ── Output ────────────────────────────────────────────────────────────────────
 
 
@@ -165,7 +174,6 @@ suites:
 
       - label: GET /core/latest/users/me
         path: /core/latest/users/me
-        note: "expect 401 — requires auth cookie"
 
       # Reference data
       - label: GET /core/latest/arumount/
@@ -193,24 +201,42 @@ suites:
         path: /core/latest/species/
         params: {q: "owl"}
 
-      # Detections
+      # Detections — invalid param combos (expect 422, tests error passthrough)
       - label: GET /core/latest/detections/?count=true
         path: /core/latest/detections/
         params: {count: "true"}
+        note: "expect 422 — missing required deployment or recording"
 
       - label: GET /core/latest/detections/?deployment={deployment_id}&confidence=0.5
         path: /core/latest/detections/
         params: {deployment: "{deployment_id}", confidence: "0.5"}
         requires: [deployment_id]
+        note: "expect 422 — missing required count, common_name, or scientific_name"
 
       - label: GET /core/latest/detections/?common_name=owl
         path: /core/latest/detections/
         params: {common_name: "owl"}
+        note: "expect 422 — missing required deployment or recording"
+
+      # Detections — valid param combos
+      - label: GET /core/latest/detections/?deployment={deployment_id}&count=true
+        path: /core/latest/detections/
+        params: {deployment: "{deployment_id}", count: "true"}
+        requires: [deployment_id]
+
+      - label: GET /core/latest/detections/?deployment={deployment_id}&common_name=owl
+        path: /core/latest/detections/
+        params: {deployment: "{deployment_id}", common_name: "owl"}
+        requires: [deployment_id]
+
+      - label: GET /core/latest/detections/?deployment={deployment_id}&confidence=0.5&count=true
+        path: /core/latest/detections/
+        params: {deployment: "{deployment_id}", confidence: "0.5", count: "true"}
+        requires: [deployment_id]
 
       # Auth-required
       - label: GET /core/latest/user-projects/
         path: /core/latest/user-projects/
-        note: "expect 401 — requires auth cookie"
 
       # Observations (obs_id discovered from project observations during discovery phase)
       - label: GET /core/latest/observations/{obs_id}

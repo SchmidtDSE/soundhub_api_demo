@@ -129,12 +129,10 @@ aws apprunner delete-service --service-arn $SERVICE_ARN --region us-west-2
 
 Endpoint smoke tests live in `api_tests/` and are driven by `api_tests/endpoints_config.yaml`. Results are written to `api_tests/results/endpoints-<target>.md`.
 
-**Run against local dev server** (start the server first):
+- for local tests you must first start the server
+- when hitting the `core/latest` endpoints you must have `SOUNDHUB_SESSION_TOKEN` set as an env-var.
 
 ```bash
-# launch server
-pixi run api_dock start --port 8000
-
 # test local dev server
 pixi run python api_tests/endpoints_tests.py
 
