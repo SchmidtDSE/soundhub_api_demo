@@ -26,4 +26,4 @@ restricted:
 # Additional Settings
 settings:
     add_trailing_slash: false
-    follow_redirects: true
+    follow_redirects: false
