@@ -26,10 +26,25 @@ cookies:
 
 
 # ── Output ────────────────────────────────────────────────────────────────────
-# basename sets the output filename base: results/<basename>-<target>.md.
+# basename sets the output filename base: results/<basename>-<target>.d-<index>.md.
 # Override on the CLI with --basename/-b.
 
 basename: endpoints
+
+
+# ── Behaviour ─────────────────────────────────────────────────────────────────
+# discovery_index       which discovered item becomes the id: first/last/random
+#                       or a 1-based integer N. Default: random.
+# discovery_over_index  fallback when discovery_index > item count. Same values;
+#                       an integer here errors if it also exceeds the count.
+#                       Default: last.
+# kill_cache            when true, append kill_cache=<random 8-char> to every
+#                       request to bust upstream/proxy caches. Default: false.
+# All three are overridable on the CLI (-d / --discovery-over-index / --kill-cache).
+
+discovery_index: random
+discovery_over_index: last
+kill_cache: false
 
 
 # ── Discovery ─────────────────────────────────────────────────────────────────

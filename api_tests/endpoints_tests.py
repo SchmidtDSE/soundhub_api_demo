@@ -10,10 +10,13 @@ Usage:
   python api_tests/endpoints_tests.py -t deployed             # named target
   python api_tests/endpoints_tests.py -c my_config.yaml       # custom config
   python api_tests/endpoints_tests.py -b smoke                # override basename
+  python api_tests/endpoints_tests.py -d last                 # discovery index
+  python api_tests/endpoints_tests.py -d 3                    # Nth discovered item
+  python api_tests/endpoints_tests.py --kill-cache            # bust upstream cache
 
-Results are written to api_tests/results/<basename>-<target>.md, where <basename>
-comes from the config's `basename` key (default "endpoints") or the --basename
-override.
+Results are written to api_tests/results/<basename>-<target>.d-<index>.md, where
+<basename> comes from the config's `basename` key (default "endpoints") and
+<index> is the resolved discovery index (first/last/random/N).
 
 License: BSD 3-Clause
 
@@ -24,13 +27,15 @@ License: BSD 3-Clause
 #
 import json
 import os
+import random
 import re
+import string
 import sys
 import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import click
 import httpx
@@ -56,6 +61,16 @@ INTERESTING_HEADERS: frozenset = frozenset({
 
 DEFAULT_CONFIG: str = "endpoints_config.yaml"
 
+# Discovery index selection. discovery_index / discovery_over_index accept one
+# of these words or a 1-based integer N. _OVER is the sentinel returned when an
+# integer index exceeds the number of available items.
+INDEX_WORDS: frozenset = frozenset({"first", "last", "random"})
+DEFAULT_DISCOVERY_INDEX: str = "random"
+DEFAULT_DISCOVERY_OVER_INDEX: str = "last"
+KILL_CACHE_PARAM: str = "kill_cache"
+KILL_CACHE_LEN: int = 8
+_OVER: object = object()
+
 GREEN: str = "\033[32m"
 RED: str = "\033[31m"
 RESET: str = "\033[0m"
@@ -68,9 +83,15 @@ CYAN: str = "\033[36m"
 #
 @dataclass
 class Result:
-    """Captures the outcome of a single HTTP request."""
+    """Captures the outcome of a single HTTP request.
+
+    `key` is the stable, un-substituted test label (e.g. "GET /deployments/
+    {deployment_id}") used to aggregate the same logical endpoint across runs
+    where discovered IDs differ. `label` is the display label with IDs filled in.
+    """
     label: str
     url: str
+    key: str = ""
     section: str = ""
     status: Optional[int] = None
     content_type: str = ""
@@ -100,11 +121,37 @@ class Result:
     help="Output filename base. Overrides the config 'basename' (default 'endpoints').",
 )
 @click.option(
+    "--discovery-index", "-d",
+    default=None,
+    help="Which discovered item to pick: first/last/random or a 1-based integer N. "
+         "Overrides the config 'discovery_index' (default 'random').",
+)
+@click.option(
+    "--discovery-over-index",
+    default=None,
+    help="Fallback used when discovery_index > item count: first/last/random or an "
+         "integer (errors if that integer also exceeds the count). Overrides config.",
+)
+@click.option(
+    "--kill-cache/--no-kill-cache",
+    default=None,
+    help=f"Append {KILL_CACHE_PARAM}=<random {KILL_CACHE_LEN}-char> to every request to "
+         "bust caches. Overrides the config 'kill_cache' (default false).",
+)
+@click.option(
     "--out", "-o",
     default=None,
-    help="Output markdown path. Defaults to api_tests/results/<basename>-<target>.md.",
+    help="Output markdown path. Defaults to api_tests/results/<basename>-<target>.d-<index>.md.",
 )
-def main(config: str, target: Optional[str], basename: Optional[str], out: Optional[str]) -> None:
+def main(
+    config: str,
+    target: Optional[str],
+    basename: Optional[str],
+    discovery_index: Optional[str],
+    discovery_over_index: Optional[str],
+    kill_cache: Optional[bool],
+    out: Optional[str],
+) -> None:
     """Smoke-test the soundhub api_dock demo against a named target.
 
     All endpoints and targets are defined in the YAML config file.
@@ -114,42 +161,38 @@ def main(config: str, target: Optional[str], basename: Optional[str], out: Optio
 
     base_url, resolved_name = _resolve_target(cfg, target)
 
+    idx = _parse_index_spec(
+        discovery_index if discovery_index is not None
+        else cfg.get("discovery_index", DEFAULT_DISCOVERY_INDEX)
+    )
+    over_idx = _parse_index_spec(
+        discovery_over_index if discovery_over_index is not None
+        else cfg.get("discovery_over_index", DEFAULT_DISCOVERY_OVER_INDEX)
+    )
+    kill = kill_cache if kill_cache is not None else bool(cfg.get("kill_cache", False))
+
     if out:
         out_path = Path(out)
     else:
         resolved_basename = basename or cfg.get("basename", "endpoints")
         results_dir = Path(__file__).parent / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
-        out_path = results_dir / f"{resolved_basename}-{resolved_name}.md"
+        out_path = results_dir / f"{resolved_basename}-{resolved_name}.d-{_index_label(idx)}.md"
 
     log: List[str] = []
-
     _log(f"\nTarget : {CYAN}{resolved_name}{RESET} → {base_url}", log)
     _log(f"Config : {config}", log)
+    _log(f"Discovery index : {_index_label(idx)} (over: {_index_label(over_idx)})", log)
+    _log(f"Kill cache : {kill}", log)
     _log(f"Output : {out_path}\n", log)
 
-    global_cookies = _resolve_cookies(cfg.get("cookies", []))
-
-    client = httpx.Client(base_url=base_url, follow_redirects=False, timeout=30)
-    results: List[Result] = []
-
-    _log("Discovering IDs from live data...", log)
-    ids = _discover_ids(client, cfg.get("discovery", {}), global_cookies, log)
-    for k, v in ids.items():
-        _log(f"  {CYAN}{k}{RESET} = {v}", log)
-
-    for suite in cfg.get("suites", []):
-        _log(f"\nRunning: {suite['name']}...", log)
-        _run_suite(client, suite, ids, global_cookies, results, log)
-
-    client.close()
+    results, _ = run_once(cfg, base_url, resolved_name, idx, over_idx, kill, log)
 
     status_counts = Counter(r.status for r in results if r.status is not None)
     skipped = sum(1 for r in results if r.url == "(skipped)")
     errs = sum(1 for r in results if r.error)
 
     _log(f"\n{'─' * 60}", log)
-
     parts = [f"Total: {len(results)}"]
     for code, count in sorted(status_counts.items()):
         color = GREEN if code < 400 else (YELLOW if code < 500 else RED)
@@ -158,13 +201,46 @@ def main(config: str, target: Optional[str], basename: Optional[str], out: Optio
         parts.append(f"skipped: {skipped}")
     if errs:
         parts.append(f"{YELLOW}conn err{RESET}: {errs}")
-
     _log("  |  ".join(parts), log)
     _log(f"Results → {out_path}\n", log)
 
     _write_markdown(results, base_url, out_path, log)
     srv_errs = sum(count for code, count in status_counts.items() if code >= 500)
     sys.exit(srv_errs + errs)
+
+
+def run_once(
+    cfg: Dict[str, Any],
+    base_url: str,
+    resolved_name: str,
+    discovery_index: Union[str, int],
+    discovery_over_index: Union[str, int],
+    kill_cache: bool,
+    log: List[str],
+) -> Tuple[List[Result], Dict[str, Any]]:
+    """Run discovery + all suites once against base_url.
+
+    Returns (results, discovered_ids). Reusable by the multi-run timing harness;
+    main() wraps this with summary printing and markdown output.
+    """
+    global_cookies = _resolve_cookies(cfg.get("cookies", []))
+    client = httpx.Client(base_url=base_url, follow_redirects=False, timeout=30)
+    results: List[Result] = []
+
+    _log("Discovering IDs from live data...", log)
+    ids = _discover_ids(
+        client, cfg.get("discovery", {}), global_cookies, log,
+        discovery_index, discovery_over_index, kill_cache,
+    )
+    for k, v in ids.items():
+        _log(f"  {CYAN}{k}{RESET} = {v}", log)
+
+    for suite in cfg.get("suites", []):
+        _log(f"\nRunning: {suite['name']}...", log)
+        _run_suite(client, suite, ids, global_cookies, results, log, kill_cache)
+
+    client.close()
+    return results, ids
 
 
 #
@@ -194,11 +270,49 @@ def _resolve_target(cfg: Dict[str, Any], target: Optional[str]) -> tuple:
     return url.rstrip("/"), resolved_name
 
 
+def _parse_index_spec(value: Any) -> Union[str, int]:
+    """Normalise a discovery index spec to 'first'/'last'/'random' or a 1-based int."""
+    if isinstance(value, bool):
+        raise click.ClickException(f"Invalid discovery index: {value!r}")
+    if isinstance(value, int):
+        if value < 1:
+            raise click.ClickException(f"Discovery index must be >= 1, got {value}")
+        return value
+    text = str(value).strip().lower()
+    if text in INDEX_WORDS:
+        return text
+    try:
+        n = int(text)
+    except ValueError:
+        raise click.ClickException(
+            f"Invalid discovery index {value!r}; expected first/last/random or an integer."
+        )
+    if n < 1:
+        raise click.ClickException(f"Discovery index must be >= 1, got {n}")
+    return n
+
+
+def _index_label(spec: Union[str, int]) -> str:
+    """Render an index spec for filenames/logs ('random', 'first', '3', ...)."""
+    return str(spec)
+
+
+def _kill_cache_params(enabled: bool) -> Dict[str, str]:
+    """Return a fresh {kill_cache: <random>} param dict when enabled, else empty."""
+    if not enabled:
+        return {}
+    token = "".join(random.choices(string.ascii_lowercase + string.digits, k=KILL_CACHE_LEN))
+    return {KILL_CACHE_PARAM: token}
+
+
 def _discover_ids(
     client: httpx.Client,
     discovery: Dict[str, Any],
     cookies: Dict[str, str],
     log: List[str],
+    discovery_index: Union[str, int],
+    discovery_over_index: Union[str, int],
+    kill_cache: bool,
 ) -> Dict[str, Any]:
     """Run discovery steps in YAML order, substituting already-found IDs into paths."""
     ids: Dict[str, Any] = {}
@@ -213,13 +327,22 @@ def _discover_ids(
 
         path = _substitute(step["path"], ids)
         params = {k: _substitute(str(v), ids) for k, v in step.get("params", {}).items()}
+        params.update(_kill_cache_params(kill_cache))
         field_name = step.get("field", "id")
 
         try:
             r = client.get(path, params=params, cookies=cookies, timeout=15)
-            ids[id_name] = _extract_first_field(r.json(), field_name)
+            body = r.json()
         except Exception:
             ids[id_name] = None
+            continue
+
+        # Selection (incl. discovery_over_index range errors) is intentionally
+        # outside the network try: an over-index error should surface, not be
+        # silently swallowed as "id not found".
+        ids[id_name] = _extract_field_by_index(
+            body, field_name, discovery_index, discovery_over_index, id_name
+        )
 
     return ids
 
@@ -231,24 +354,27 @@ def _run_suite(
     global_cookies: Dict[str, str],
     results: List[Result],
     log: List[str],
+    kill_cache: bool,
 ) -> None:
     """Run all tests in a suite, substituting IDs and skipping where required IDs are absent."""
     section = suite["name"]
     cookies = {**global_cookies, **_resolve_cookies(suite.get("cookies", []))}
 
     for test in suite.get("tests", []):
+        raw_label = test.get("label", test["path"])
         requires = test.get("requires", [])
         missing = [r for r in requires if ids.get(r) is None]
         if missing:
-            label = _substitute(test.get("label", test["path"]), ids)
-            _skip(results, label, f"missing IDs: {missing}", section=section, log=log)
+            _skip(results, _substitute(raw_label, ids), f"missing IDs: {missing}",
+                  section=section, log=log, key=raw_label)
             continue
 
         path = _substitute(test["path"], ids)
-        label = _substitute(test.get("label", test["path"]), ids)
+        label = _substitute(raw_label, ids)
         params = {k: _substitute(str(v), ids) for k, v in test.get("params", {}).items()}
 
-        _hit(client, results, label, path, params or None, test.get("note"), section=section, cookies=cookies, log=log)
+        _hit(client, results, label, path, params or None, test.get("note"),
+             section=section, cookies=cookies, log=log, key=raw_label, kill_cache=kill_cache)
 
 
 def _hit(
@@ -261,19 +387,25 @@ def _hit(
     section: str = "",
     cookies: Optional[Dict[str, str]] = None,
     log: Optional[List[str]] = None,
+    key: str = "",
+    kill_cache: bool = False,
 ) -> Optional[httpx.Response]:
     """Make a GET request, append a Result, and print progress."""
+    req_params = dict(params or {})
+    req_params.update(_kill_cache_params(kill_cache))
+
     full_url = str(client.base_url).rstrip("/") + path
-    if params:
-        full_url += "?" + "&".join(f"{k}={v}" for k, v in params.items())
+    if req_params:
+        full_url += "?" + "&".join(f"{k}={v}" for k, v in req_params.items())
 
     start = time.perf_counter()
     try:
-        resp = client.get(path, params=params, cookies=cookies or {})
+        resp = client.get(path, params=req_params or None, cookies=cookies or {})
     except httpx.RequestError as exc:
         elapsed = time.perf_counter() - start
         results.append(Result(
-            label=label, url=full_url, section=section, error=str(exc), note=note, elapsed=elapsed
+            label=label, url=full_url, key=key, section=section,
+            error=str(exc), note=note, elapsed=elapsed,
         ))
         _log(f"  {RED}ERR{RESET}  {label}  {elapsed:05.2f}", log or [])
         return None
@@ -283,6 +415,7 @@ def _hit(
     results.append(Result(
         label=label,
         url=full_url,
+        key=key,
         section=section,
         status=resp.status_code,
         content_type=ct,
@@ -319,19 +452,65 @@ def _substitute(template: str, ids: Dict[str, Any]) -> str:
     return result
 
 
-def _extract_first_field(body: Any, field_name: str) -> Optional[Any]:
-    """Pull a named field from the first element of a list or a dict response."""
-    if isinstance(body, list) and body:
-        row = body[0]
-        return row.get(field_name) if isinstance(row, dict) else None
-    if isinstance(body, dict):
+def _select_row(
+    rows: List[Any],
+    discovery_index: Union[str, int],
+    discovery_over_index: Union[str, int],
+    ctx: str,
+) -> Any:
+    """Pick one row from a non-empty list per the index spec, falling back on over-index."""
+    chosen = _pick_row(rows, discovery_index)
+    if chosen is not _OVER:
+        return chosen
+
+    chosen = _pick_row(rows, discovery_over_index)
+    if chosen is _OVER:
+        raise click.ClickException(
+            f"discovery_over_index ({_index_label(discovery_over_index)}) exceeds the "
+            f"{len(rows)} item(s) available for '{ctx}'."
+        )
+    return chosen
+
+
+def _pick_row(rows: List[Any], spec: Union[str, int]) -> Any:
+    """Return the selected row, or _OVER when an integer spec exceeds the item count."""
+    if spec == "first":
+        return rows[0]
+    if spec == "last":
+        return rows[-1]
+    if spec == "random":
+        return random.choice(rows)
+    # 1-based integer
+    if spec <= len(rows):
+        return rows[spec - 1]
+    return _OVER
+
+
+def _extract_field_by_index(
+    body: Any,
+    field_name: str,
+    discovery_index: Union[str, int],
+    discovery_over_index: Union[str, int],
+    ctx: str,
+) -> Optional[Any]:
+    """Pull `field_name` from the index-selected row of a list/paginated response."""
+    rows: Optional[List[Any]] = None
+    if isinstance(body, list):
+        rows = body
+    elif isinstance(body, dict):
         if field_name in body:
             return body[field_name]
         for key in ("results", "data"):
-            rows = body.get(key, [])
-            if rows and isinstance(rows, list) and isinstance(rows[0], dict):
-                return rows[0].get(field_name)
-    return None
+            candidate = body.get(key, [])
+            if isinstance(candidate, list) and candidate:
+                rows = candidate
+                break
+
+    if not rows:
+        return None
+
+    row = _select_row(rows, discovery_index, discovery_over_index, ctx)
+    return row.get(field_name) if isinstance(row, dict) else None
 
 
 def _skip(
@@ -340,8 +519,9 @@ def _skip(
     reason: str,
     section: str = "",
     log: Optional[List[str]] = None,
+    key: str = "",
 ) -> None:
-    results.append(Result(label=label, url="(skipped)", section=section, note=reason))
+    results.append(Result(label=label, url="(skipped)", key=key, section=section, note=reason))
     _log(f"  {YELLOW}SKIP{RESET}  {label} — {reason}", log or [])
 
 

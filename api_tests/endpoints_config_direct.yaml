@@ -28,10 +28,21 @@ cookies:
 
 
 # ── Output ────────────────────────────────────────────────────────────────────
-# basename sets the output filename base: results/<basename>-<target>.md.
+# basename sets the output filename base: results/<basename>-<target>.d-<index>.md.
 # Override on the CLI with --basename/-b.
 
 basename: endpoints
+
+
+# ── Behaviour ─────────────────────────────────────────────────────────────────
+# See endpoints_config.yaml for full notes on these keys.
+# discovery_index: first/last/random or 1-based N (default random).
+# discovery_over_index: fallback when discovery_index > item count (default last).
+# kill_cache: append kill_cache=<random 8-char> to every request (default false).
+
+discovery_index: random
+discovery_over_index: last
+kill_cache: false
 
 
 # ── Discovery ─────────────────────────────────────────────────────────────────
