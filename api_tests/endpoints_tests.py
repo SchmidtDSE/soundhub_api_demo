@@ -188,25 +188,38 @@ def main(
 
     results, _ = run_once(cfg, base_url, resolved_name, idx, over_idx, kill, log)
 
-    status_counts = Counter(r.status for r in results if r.status is not None)
-    skipped = sum(1 for r in results if r.url == "(skipped)")
-    errs = sum(1 for r in results if r.error)
-
-    _log(f"\n{'─' * 60}", log)
-    parts = [f"Total: {len(results)}"]
-    for code, count in sorted(status_counts.items()):
-        color = GREEN if code < 400 else (YELLOW if code < 500 else RED)
-        parts.append(f"{color}{code}{RESET}: {count}")
-    if skipped:
-        parts.append(f"skipped: {skipped}")
-    if errs:
-        parts.append(f"{YELLOW}conn err{RESET}: {errs}")
-    _log("  |  ".join(parts), log)
+    exit_code = _append_summary(results, log)
     _log(f"Results → {out_path}\n", log)
-
     _write_markdown(results, base_url, out_path, log)
-    srv_errs = sum(count for code, count in status_counts.items() if code >= 500)
-    sys.exit(srv_errs + errs)
+    sys.exit(exit_code)
+
+
+def discover(
+    cfg: Dict[str, Any],
+    base_url: str,
+    resolved_name: str,
+    discovery_index: Union[str, int],
+    discovery_over_index: Union[str, int],
+    kill_cache: bool,
+    log: List[str],
+) -> Dict[str, Any]:
+    """Run only the discovery steps and return the discovered IDs.
+
+    Lets a caller discover once and reuse the same IDs across multiple sources
+    (e.g. the timing harness, so direct vs deployed hit the same records).
+    """
+    global_cookies = _resolve_cookies(cfg.get("cookies", []))
+    client = httpx.Client(base_url=base_url, follow_redirects=False, timeout=30)
+    try:
+        _log("Discovering IDs from live data...", log)
+        ids = _discover_ids(
+            client, cfg.get("discovery", {}), global_cookies, log,
+            discovery_index, discovery_over_index, kill_cache,
+        )
+        _log_ids(ids, log)
+    finally:
+        client.close()
+    return ids
 
 
 def run_once(
@@ -217,23 +230,28 @@ def run_once(
     discovery_over_index: Union[str, int],
     kill_cache: bool,
     log: List[str],
+    ids: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[Result], Dict[str, Any]]:
     """Run discovery + all suites once against base_url.
 
-    Returns (results, discovered_ids). Reusable by the multi-run timing harness;
-    main() wraps this with summary printing and markdown output.
+    If `ids` is provided, discovery is skipped and those IDs are used (so the
+    same records can be exercised across sources). Otherwise IDs are discovered
+    here. Returns (results, ids). main() wraps this with summary + markdown.
     """
     global_cookies = _resolve_cookies(cfg.get("cookies", []))
     client = httpx.Client(base_url=base_url, follow_redirects=False, timeout=30)
     results: List[Result] = []
 
-    _log("Discovering IDs from live data...", log)
-    ids = _discover_ids(
-        client, cfg.get("discovery", {}), global_cookies, log,
-        discovery_index, discovery_over_index, kill_cache,
-    )
-    for k, v in ids.items():
-        _log(f"  {CYAN}{k}{RESET} = {v}", log)
+    if ids is None:
+        _log("Discovering IDs from live data...", log)
+        ids = _discover_ids(
+            client, cfg.get("discovery", {}), global_cookies, log,
+            discovery_index, discovery_over_index, kill_cache,
+        )
+        _log_ids(ids, log)
+    else:
+        _log("Using shared discovered IDs...", log)
+        _log_ids(ids, log)
 
     for suite in cfg.get("suites", []):
         _log(f"\nRunning: {suite['name']}...", log)
@@ -250,6 +268,36 @@ def _log(msg: str, log: List[str]) -> None:
     """Print msg to stdout and append a clean (ANSI-stripped) copy to log."""
     click.echo(msg)
     log.append(re.sub(r"\033\[[0-9;]*m", "", msg))
+
+
+def _log_ids(ids: Dict[str, Any], log: List[str]) -> None:
+    """Log each discovered id = value line."""
+    for k, v in ids.items():
+        _log(f"  {CYAN}{k}{RESET} = {v}", log)
+
+
+def _append_summary(results: List[Result], log: List[str]) -> int:
+    """Append the divider + status-count summary line to log.
+
+    Returns the process exit code: server errors (5xx) plus connection errors.
+    """
+    status_counts = Counter(r.status for r in results if r.status is not None)
+    skipped = sum(1 for r in results if r.url == "(skipped)")
+    errs = sum(1 for r in results if r.error)
+
+    _log(f"\n{'─' * 60}", log)
+    parts = [f"Total: {len(results)}"]
+    for code, count in sorted(status_counts.items()):
+        color = GREEN if code < 400 else (YELLOW if code < 500 else RED)
+        parts.append(f"{color}{code}{RESET}: {count}")
+    if skipped:
+        parts.append(f"skipped: {skipped}")
+    if errs:
+        parts.append(f"{YELLOW}conn err{RESET}: {errs}")
+    _log("  |  ".join(parts), log)
+
+    srv_errs = sum(count for code, count in status_counts.items() if code >= 500)
+    return srv_errs + errs
 
 
 def _resolve_target(cfg: Dict[str, Any], target: Optional[str]) -> tuple:
