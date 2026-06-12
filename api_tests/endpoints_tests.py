@@ -7,10 +7,13 @@ file (default: endpoints_config.yaml in the same directory).
 
 Usage:
   python api_tests/endpoints_tests.py                         # default target
-  python api_tests/endpoints_tests.py -n deployed             # named target
+  python api_tests/endpoints_tests.py -t deployed             # named target
   python api_tests/endpoints_tests.py -c my_config.yaml       # custom config
+  python api_tests/endpoints_tests.py -b smoke                # override basename
 
-Results are written to api_tests/results/endpoints-<target>.md.
+Results are written to api_tests/results/<basename>-<target>.md, where <basename>
+comes from the config's `basename` key (default "endpoints") or the --basename
+override.
 
 License: BSD 3-Clause
 
@@ -23,6 +26,7 @@ import json
 import os
 import re
 import sys
+import time
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -74,6 +78,7 @@ class Result:
     forwarded_headers: Dict[str, str] = field(default_factory=dict)
     error: Optional[str] = None
     note: Optional[str] = None
+    elapsed: Optional[float] = None
 
 
 @click.command()
@@ -85,31 +90,37 @@ class Result:
     type=click.Path(exists=True, dir_okay=False),
 )
 @click.option(
-    "--name", "-n",
+    "--target", "-t",
     default=None,
     help="Named target from the config (e.g. 'local', 'deployed'). Uses config default if omitted.",
 )
 @click.option(
+    "--basename", "-b",
+    default=None,
+    help="Output filename base. Overrides the config 'basename' (default 'endpoints').",
+)
+@click.option(
     "--out", "-o",
     default=None,
-    help="Output markdown path. Defaults to api_tests/results/endpoints-<target>.md.",
+    help="Output markdown path. Defaults to api_tests/results/<basename>-<target>.md.",
 )
-def main(config: str, name: Optional[str], out: Optional[str]) -> None:
+def main(config: str, target: Optional[str], basename: Optional[str], out: Optional[str]) -> None:
     """Smoke-test the soundhub api_dock demo against a named target.
 
     All endpoints and targets are defined in the YAML config file.
-    Run without --name to use the default target from the config.
+    Run without --target to use the default target from the config.
     """
     cfg = yaml.safe_load(Path(config).read_text())
 
-    base_url, resolved_name = _resolve_target(cfg, name)
+    base_url, resolved_name = _resolve_target(cfg, target)
 
     if out:
         out_path = Path(out)
     else:
+        resolved_basename = basename or cfg.get("basename", "endpoints")
         results_dir = Path(__file__).parent / "results"
         results_dir.mkdir(parents=True, exist_ok=True)
-        out_path = results_dir / f"endpoints-{resolved_name}.md"
+        out_path = results_dir / f"{resolved_basename}-{resolved_name}.md"
 
     log: List[str] = []
 
@@ -165,15 +176,15 @@ def _log(msg: str, log: List[str]) -> None:
     log.append(re.sub(r"\033\[[0-9;]*m", "", msg))
 
 
-def _resolve_target(cfg: Dict[str, Any], name: Optional[str]) -> tuple:
+def _resolve_target(cfg: Dict[str, Any], target: Optional[str]) -> tuple:
     """Return (base_url, resolved_name) for the named target or config default."""
     targets = cfg.get("targets", {})
     if not targets:
         raise click.ClickException("No 'targets' section in config.")
 
-    resolved_name = name or targets.get("default")
+    resolved_name = target or targets.get("default")
     if not resolved_name:
-        raise click.ClickException("No --name given and no 'default' set in config targets.")
+        raise click.ClickException("No --target given and no 'default' set in config targets.")
 
     url = targets.get(resolved_name)
     if not url:
@@ -256,13 +267,18 @@ def _hit(
     if params:
         full_url += "?" + "&".join(f"{k}={v}" for k, v in params.items())
 
+    start = time.perf_counter()
     try:
         resp = client.get(path, params=params, cookies=cookies or {})
     except httpx.RequestError as exc:
-        results.append(Result(label=label, url=full_url, section=section, error=str(exc), note=note))
-        _log(f"  {RED}ERR{RESET}  {label}", log or [])
+        elapsed = time.perf_counter() - start
+        results.append(Result(
+            label=label, url=full_url, section=section, error=str(exc), note=note, elapsed=elapsed
+        ))
+        _log(f"  {RED}ERR{RESET}  {label}  {elapsed:05.2f}", log or [])
         return None
 
+    elapsed = time.perf_counter() - start
     ct = resp.headers.get("content-type", "")
     results.append(Result(
         label=label,
@@ -273,10 +289,11 @@ def _hit(
         preview=_build_preview(resp, ct),
         forwarded_headers={k: v for k, v in resp.headers.items() if k.lower() in INTERESTING_HEADERS},
         note=note,
+        elapsed=elapsed,
     ))
 
     color = GREEN if resp.status_code < 400 else (YELLOW if resp.status_code < 500 else RED)
-    _log(f"  {color}{resp.status_code}{RESET}  {label}", log or [])
+    _log(f"  {color}{resp.status_code}{RESET}  {label}  {elapsed:05.2f}", log or [])
     return resp
 
 
@@ -393,7 +410,10 @@ def _write_markdown(results: List[Result], base_url: str, out_path: Path, log: L
             continue
 
         if r.error:
-            lines += [f"#### ❌ `{r.label}`", "", f"**URL**: `{r.url}`  ", f"**Error**: {r.error}", ""]
+            lines += [f"#### ❌ `{r.label}`", "", f"**URL**: `{r.url}`  "]
+            if r.elapsed is not None:
+                lines += [f"**Time**: {r.elapsed:.2f}s  "]
+            lines += [f"**Error**: {r.error}", ""]
             continue
 
         icon = "✅" if r.status and r.status < 400 else ("⚠️" if r.status and r.status < 500 else "❌")
@@ -403,6 +423,8 @@ def _write_markdown(results: List[Result], base_url: str, out_path: Path, log: L
             f"**URL**: `{r.url}`  ",
             f"**Content-Type**: `{r.content_type or 'none'}`  ",
         ]
+        if r.elapsed is not None:
+            lines += [f"**Time**: {r.elapsed:.2f}s  "]
         if r.note:
             lines += [f"**Note**: {r.note}  "]
 

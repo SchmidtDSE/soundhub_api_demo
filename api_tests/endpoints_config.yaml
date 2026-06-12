@@ -4,11 +4,11 @@
 #
 # Usage:
 #   pixi run python api_tests/endpoints_tests.py              # (uses default target) → results/endpoints-local.md
-#   pixi run python api_tests/endpoints_tests.py -n deployed  # (named target) → results/endpoints-deployed.md
+#   pixi run python api_tests/endpoints_tests.py -t deployed  # (named target) → results/endpoints-deployed.md
 
 
 # ── Targets ───────────────────────────────────────────────────────────────────
-# Add named base URLs here. "default" sets which one runs when -n is omitted.
+# Add named base URLs here. "default" sets which one runs when -t is omitted.
 
 targets:
   default: local
@@ -26,7 +26,10 @@ cookies:
 
 
 # ── Output ────────────────────────────────────────────────────────────────────
+# basename sets the output filename base: results/<basename>-<target>.md.
+# Override on the CLI with --basename/-b.
 
+basename: endpoints
 
 
 # ── Discovery ─────────────────────────────────────────────────────────────────

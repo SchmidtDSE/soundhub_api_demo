@@ -1,0 +1,229 @@
+# endpoints_config_direct.yaml
+#
+# Endpoint configuration for endpoints_tests.py that hits the upstream Soundhub
+# core API DIRECTLY (no api_dock proxy), so the "/core/latest" prefix is stripped
+# from every path. Use this to compare the direct upstream behaviour against the
+# api_dock-proxied results from endpoints_config.yaml.
+#
+# Usage:
+#   pixi run python api_tests/endpoints_tests.py -c api_tests/endpoints_config_direct.yaml
+#     → results/endpoints-soundhub.md
+
+
+# ── Targets ───────────────────────────────────────────────────────────────────
+# Add named base URLs here. "default" sets which one runs when -t is omitted.
+
+targets:
+  default: soundhub
+  soundhub: https://api.dev.wildlifesoundhub.org
+
+
+# ── Cookies ───────────────────────────────────────────────────────────────────
+# Applied to all requests (discovery + all suites). Use env: prefix to read
+# from an environment variable. Suite-level cookies merge on top of these.
+
+cookies:
+  - key: __Secure-authjs.session-token
+    value: "env:SOUNDHUB_SESSION_TOKEN"
+
+
+# ── Output ────────────────────────────────────────────────────────────────────
+# basename sets the output filename base: results/<basename>-<target>.md.
+# Override on the CLI with --basename/-b.
+
+basename: endpoints
+
+
+# ── Discovery ─────────────────────────────────────────────────────────────────
+# Steps run in order before any suite. Use {var_name} to reference IDs found
+# in earlier steps. If a required ID is missing the step is skipped.
+
+discovery:
+  project_id:
+    path: /projects/
+    field: id
+
+  deployment_id:
+    path: /deployments/
+    field: id
+
+  recording_id:
+    path: /recordings/
+    field: id
+
+  revision_id:
+    path: /revisions/
+    field: id
+
+  obs_id:
+    path: /recordings/{recording_id}/observations/
+    field: id
+    requires: [recording_id]
+
+
+# ── Suites ────────────────────────────────────────────────────────────────────
+# Each suite becomes a section in the output markdown. Tests run in order.
+# Use {var_name} in path/params/label to substitute discovered IDs.
+# Add requires: [var_name, ...] to skip a test when an ID wasn't found.
+
+suites:
+
+  - name: Core Direct
+    tests:
+
+      # Deployments
+      - label: GET /deployments/
+        path: /deployments/
+
+      - label: GET /deployments/{deployment_id}
+        path: /deployments/{deployment_id}
+        requires: [deployment_id]
+
+      - label: GET /deployments/fields/name/?distinct=true
+        path: /deployments/fields/name/
+        params: {distinct: "true"}
+
+      # Projects
+      - label: GET /projects/
+        path: /projects/
+
+      - label: GET /projects/{project_id}
+        path: /projects/{project_id}
+        requires: [project_id]
+
+      - label: GET /projects/{project_id}/observations/
+        path: /projects/{project_id}/observations/
+        requires: [project_id]
+
+      - label: GET /projects/{project_id}/deployments/
+        path: /projects/{project_id}/deployments/
+        requires: [project_id]
+
+      - label: GET /projects/{project_id}/recordings/
+        path: /projects/{project_id}/recordings/
+        requires: [project_id]
+
+      - label: GET /projects/{project_id}/users/
+        path: /projects/{project_id}/users/
+        requires: [project_id]
+
+      - label: GET /projects/agg/
+        path: /projects/agg/
+
+      # Recordings
+      - label: GET /recordings/
+        path: /recordings/
+
+      - label: GET /recordings/{recording_id}
+        path: /recordings/{recording_id}
+        requires: [recording_id]
+
+      - label: GET /recordings/{recording_id}/detections/
+        path: /recordings/{recording_id}/detections/
+        requires: [recording_id]
+
+      - label: GET /recordings/{recording_id}/detections/?confidence=0.8
+        path: /recordings/{recording_id}/detections/
+        params: {confidence: "0.8"}
+        requires: [recording_id]
+
+      - label: GET /recordings/{recording_id}/ogg?start=0&end=5
+        path: /recordings/{recording_id}/ogg
+        params: {start: "0", end: "5"}
+        note: "audio endpoint — expect binary or redirect"
+        requires: [recording_id]
+
+      - label: GET /recordings/{recording_id}/observations/
+        path: /recordings/{recording_id}/observations/
+        requires: [recording_id]
+
+      - label: GET /recordings/{recording_id}/species/
+        path: /recordings/{recording_id}/species/
+        requires: [recording_id]
+
+      # Revisions
+      - label: GET /revisions/
+        path: /revisions/
+
+      - label: GET /revisions/csv
+        path: /revisions/csv
+        note: "CSV response expected"
+
+      - label: GET /revisions/{revision_id}
+        path: /revisions/{revision_id}
+        requires: [revision_id]
+
+      # Users
+      - label: GET /users/
+        path: /users/
+
+      - label: GET /users/me
+        path: /users/me
+
+      # Reference data
+      - label: GET /arumount/
+        path: /arumount/
+
+      - label: GET /arustatus/
+        path: /arustatus/
+
+      - label: GET /featuretypes/
+        path: /featuretypes/
+
+      - label: GET /frequencies/
+        path: /frequencies/
+
+      - label: GET /sensorlayouts/
+        path: /sensorlayouts/
+
+      - label: GET /taxa/
+        path: /taxa/
+
+      - label: GET /species/
+        path: /species/
+
+      - label: GET /species/?q=owl
+        path: /species/
+        params: {q: "owl"}
+
+      # Detections — invalid param combos (expect 422, tests error passthrough)
+      - label: GET /detections/?count=true
+        path: /detections/
+        params: {count: "true"}
+        note: "expect 422 — missing required deployment or recording"
+
+      - label: GET /detections/?deployment={deployment_id}&confidence=0.5
+        path: /detections/
+        params: {deployment: "{deployment_id}", confidence: "0.5"}
+        requires: [deployment_id]
+        note: "expect 422 — missing required count, common_name, or scientific_name"
+
+      - label: GET /detections/?common_name=owl
+        path: /detections/
+        params: {common_name: "owl"}
+        note: "expect 422 — missing required deployment or recording"
+
+      # Detections — valid param combos
+      - label: GET /detections/?deployment={deployment_id}&count=true
+        path: /detections/
+        params: {deployment: "{deployment_id}", count: "true"}
+        requires: [deployment_id]
+
+      - label: GET /detections/?deployment={deployment_id}&common_name=owl
+        path: /detections/
+        params: {deployment: "{deployment_id}", common_name: "owl"}
+        requires: [deployment_id]
+
+      - label: GET /detections/?deployment={deployment_id}&confidence=0.5&count=true
+        path: /detections/
+        params: {deployment: "{deployment_id}", confidence: "0.5", count: "true"}
+        requires: [deployment_id]
+
+      # Auth-required
+      - label: GET /user-projects/
+        path: /user-projects/
+
+      # Observations (obs_id discovered from recording observations during discovery phase)
+      - label: GET /observations/{obs_id}
+        path: /observations/{obs_id}
+        requires: [obs_id]
