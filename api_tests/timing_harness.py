@@ -16,7 +16,7 @@ Sources:
 By default only `direct` and `deployed` run — `local` is opt-in via --include-local.
 
 Usage:
-  pixi run python api_tests/timing_harness.py                       # 3 runs (direct+deployed)
+  pixi run python api_tests/timing_harness.py                       # 4 runs (direct+deployed)
   pixi run python api_tests/timing_harness.py -n 5                  # 5 random runs/source
   pixi run python api_tests/timing_harness.py -l                   # also run local
   pixi run python api_tests/timing_harness.py --discovery-indices 1,2,3
@@ -50,7 +50,14 @@ RESULTS_DIR: Path = Path(__file__).parent / "results"
 HERE: Path = Path(__file__).parent
 
 DEFAULT_OVER_INDEX: str = "last"
-DEFAULT_RUNS: int = 3
+DEFAULT_RUNS: int = 4
+
+# An endpoint is flagged as likely upstream-cached when whichever source ran
+# *second* was faster in ≥ this fraction of runs by ≥ this many seconds on
+# average — a tell that the upstream caches the result (kill_cache only busts
+# HTTP caches, not the upstream's own query-result cache).
+ORDER_EFFECT_MIN_ADVANTAGE: float = 0.20
+ORDER_EFFECT_MIN_FRACTION: float = 0.75
 
 # label → (config-key, target). config-key picks --direct-config vs --config.
 ALL_SOURCES: Dict[str, Tuple[str, str]] = {
@@ -165,7 +172,10 @@ def main(
                 accs[lbl]["failures"].append(f"run {i}: shared discovery aborted — {exc}")
             continue
 
-        for label in labels:
+        # Alternate source order each run so neither source consistently goes
+        # first — cancels any cache-warming bias if kill_cache is stripped/ignored.
+        run_labels = labels if i % 2 == 1 else list(reversed(labels))
+        for label in run_labels:
             s = src[label]
             click.echo(f"\n--- {label} run {i}/{len(specs)} ---")
             log: List[str] = []
@@ -222,7 +232,7 @@ def _record_run(acc: dict, results: List, run_i: int) -> None:
         if r.url == "(skipped)":
             continue
         key = r.key.replace(PREFIX, "", 1)
-        slot = acc["per_key"].setdefault(key, {"times": [], "statuses": []})
+        slot = acc["per_key"].setdefault(key, {"times": [], "statuses": [], "by_run": {}})
         if r.error:
             acc["failures"].append(f"`{label}` run {run_i}: `{key}` connection error — {r.error}")
             slot["statuses"].append("ERR")
@@ -232,6 +242,7 @@ def _record_run(acc: dict, results: List, run_i: int) -> None:
             acc["failures"].append(f"`{label}` run {run_i}: `{key}` → {r.status}")
         if r.elapsed is not None:
             slot["times"].append(r.elapsed)
+            slot["by_run"][run_i] = r.elapsed
 
 
 def _finalize_failures(acc: dict) -> None:
@@ -318,6 +329,32 @@ def _paired_diffs(base_times: List[float], other_times: List[float]) -> List[flo
     return [o - b for b, o in zip(base_times, other_times)]
 
 
+def _order_effect(
+    direct_by_run: Dict[int, float], deployed_by_run: Dict[int, float]
+) -> Optional[float]:
+    """Detect an upstream-cache tell: the source running *second* is consistently faster.
+
+    Source order alternates by run parity (odd run → deployed runs after direct;
+    even run → direct runs after deployed). Returns the mean per-run advantage of
+    the later source (seconds) when it wins in ≥ ORDER_EFFECT_MIN_FRACTION of runs
+    by ≥ ORDER_EFFECT_MIN_ADVANTAGE on average; otherwise None.
+    """
+    runs = sorted(set(direct_by_run) & set(deployed_by_run))
+    if len(runs) < 2:
+        return None
+    advantages = []
+    for i in runs:
+        later = deployed_by_run[i] if i % 2 == 1 else direct_by_run[i]
+        earlier = direct_by_run[i] if i % 2 == 1 else deployed_by_run[i]
+        advantages.append(earlier - later)  # > 0 means the later source was faster
+    later_faster_fraction = sum(1 for a in advantages if a > 0) / len(advantages)
+    mean_advantage = statistics.mean(advantages)
+    if (mean_advantage >= ORDER_EFFECT_MIN_ADVANTAGE
+            and later_faster_fraction >= ORDER_EFFECT_MIN_FRACTION):
+        return mean_advantage
+    return None
+
+
 def _has_times(src: dict, key: str) -> bool:
     """True when a source has at least one timing sample for an endpoint key."""
     return bool(src["per_key"].get(key, {}).get("times"))
@@ -348,6 +385,9 @@ def _render(sources: List[dict], specs: List[Union[str, int]], kill_cache: bool)
         "Δ columns are per-run differences (source − Direct) summarised across the "
         "runs (mean/max/min/std). Per-source detail below shows each source's spread.",
         "",
+        "Discovery is shared per run (all sources hit the same records), and source "
+        "order is alternated each run to cancel any cache-warming bias.",
+        "",
     ]
 
     # Failures & anomalies.
@@ -368,6 +408,7 @@ def _render(sources: List[dict], specs: List[Union[str, int]], kill_cache: bool)
     table_rows: List[str] = []
     d_means, l_means, p_means = [], [], []
     mean_overhead_dep, mean_overhead_loc = [], []
+    order_flagged: List[Tuple[str, float]] = []
     for k in keys:
         d_times = direct["per_key"][k]["times"]
         p_times = deployed["per_key"][k]["times"]
@@ -377,7 +418,13 @@ def _render(sources: List[dict], specs: List[Union[str, int]], kill_cache: bool)
         dep = _moments(_paired_diffs(d_times, p_times))
         mean_overhead_dep.append(dep["mean"])
 
-        cells = [f"`{k}`", f"{d:.3f}"]
+        effect = _order_effect(direct["per_key"][k].get("by_run", {}),
+                               deployed["per_key"][k].get("by_run", {}))
+        marker = " ⚠️" if effect is not None else ""
+        if effect is not None:
+            order_flagged.append((k, effect))
+
+        cells = [f"`{k}`{marker}", f"{d:.3f}"]
         if has_local:
             l_times = local["per_key"][k]["times"]
             ll = statistics.mean(l_times)
@@ -416,7 +463,24 @@ def _render(sources: List[dict], specs: List[Union[str, int]], kill_cache: bool)
     lines += ["### Per-endpoint (Δ stats across runs)", "", header, sep]
     lines += table_rows
 
-    lines += ["", "### Summary (mean of per-endpoint means)", ""]
+    # Order-dependent (likely upstream-cached) endpoints.
+    lines += ["", "### ⚠️ Order-dependent endpoints (likely upstream-cached)", ""]
+    if order_flagged:
+        lines += [
+            "For these, whichever source ran **second** was consistently faster by the "
+            "amount shown — a tell that the **upstream caches the result** (kill_cache "
+            "only busts HTTP caches, not the upstream's query-result cache). Here the "
+            "Δ **mean** is still valid overhead, but treat Δ max/min/std as the upstream "
+            "cold-vs-warm swing, not proxy behaviour.",
+            "",
+        ]
+        for k, adv in sorted(order_flagged, key=lambda x: -x[1]):
+            lines.append(f"- `{k}` — second-run advantage ~{adv:.2f}s")
+        lines.append("")
+    else:
+        lines += ["_None detected — Δ spreads reflect real variation, not caching._", ""]
+
+    lines += ["### Summary (mean of per-endpoint means)", ""]
     lines += _stat_block("Direct", d_means)
     if has_local:
         lines += _stat_block("Local", l_means)
