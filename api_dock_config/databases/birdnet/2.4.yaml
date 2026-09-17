@@ -29,6 +29,10 @@ routes:
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
   - route: detections/
     sql: SELECT [[detections]].id FROM [[detections]]
+    query_params:
+      - recording:
+          sql: "[[detections]].recording_id = {{recording}}"
+          multivalue_sql: "[[detections]].recording_id in {{recording}}"
 
 query_params:
   - sort:
