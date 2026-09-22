@@ -1,11 +1,11 @@
 name: owl
-description: owl-model dev database - Version 0.1
+description: owl-model dev database - Version 4.0
 authors:
   - API Team
 
 tables:
   observations:
-    uri: s3://dse-soundhub/public/owl/v4/observations/results_p1-test/**/*.parquet
+    uri: s3://dse-soundhub/artifacts/run-98a5c16f-1015-481c-8ff1-2e0299813c58/observations/e67a614842b9bb7951a482539bc0cc2f78cbd317e213f377ec62f5a4b2cefbf0.parquet
     region: us-west-2
     public: true
 
@@ -43,6 +43,7 @@ query_params:
       sql_append: OFFSET {{offset}}
   - limit:
       sql_append: LIMIT {{limit}}
+
 
 
 

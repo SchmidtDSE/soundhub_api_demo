@@ -5,10 +5,10 @@ authors:
 
 tables:
   observations:
-    uri: s3://dse-soundhub/artifacts/run-ee2e6559-d00a-4c27-a6ba-7baf97481fc4/detections/49d5c291983581c8efcdee92d7800d7d28c9be8213b45867a118626738450a77.parquet
+    uri: s3://dse-soundhub/artifacts/run-96ca354e-3653-4c98-86e0-80cc5b3702eb/detections/d06d60d5a949e31be081da9fa9c91fd2e926f77c79e41e7453f7292815ed879b.parquet
     region: us-west-2
     public: true
- revisions:
+  revisions:
     uri: s3://dse-soundhub/public/dev/dummy/fake_revisions.bn2p4.parquet
     region: us-west-2
     public: true
