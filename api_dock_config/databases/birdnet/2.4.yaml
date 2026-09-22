@@ -4,7 +4,7 @@ authors:
   - API Team
 
 tables:
-  observations:
+  detections:
     uri: s3://dse-soundhub/artifacts/run-ee2e6559-d00a-4c27-a6ba-7baf97481fc4/detections/49d5c291983581c8efcdee92d7800d7d28c9be8213b45867a118626738450a77.parquet
     region: us-west-2
     public: true
@@ -14,39 +14,39 @@ tables:
     public: true
 
 routes:
-  - route: /recordings/{{recording_id}}/observations/
-    sql: SELECT [[observations]].* FROM [[observations]] WHERE [[observations]].recording_id = {{recording_id}}
+  - route: /recordings/{{recording_id}}/detections/
+    sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].recording_id = {{recording_id}}
     query_params:
       - confidence:
-          sql: "[[observations]].confidence >= {{confidence}}"
+          sql: "[[detections]].confidence >= {{confidence}}"
       - scientific_name:
-          sql: "UPPER([[observations]].scientific_name) = UPPER('{{scientific_name}}')"
+          sql: "UPPER([[detections]].scientific_name) = UPPER('{{scientific_name}}')"
       - common_name:
-          sql: "UPPER([[observations]].common_name) = UPPER('{{common_name}}')"
+          sql: "UPPER([[detections]].common_name) = UPPER('{{common_name}}')"
       - rank:
-          sql: "[[observations]].rank = {{rank}}"
+          sql: "[[detections]].rank = {{rank}}"
       - start_time:
-          sql: "[[observations]].start_time >= {{start_time}}"
+          sql: "[[detections]].start_time >= {{start_time}}"
       - end_time:
-          sql: "[[observations]].end_time <= {{end_time}}"
-  - route: observations/{{id}}
-    sql: SELECT [[observations]].* FROM [[observations]] WHERE [[observations]].id = {{id}}
-  - route: observations/
+          sql: "[[detections]].end_time <= {{end_time}}"
+  - route: detections/{{id}}
+    sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
+  - route: detections/
     sql:
       - when: count
         then:
           sql: >
-            SELECT observations.common_name, observations.scientific_name,
-                   COUNT(DISTINCT observations.id) AS count,
+            SELECT detections.common_name, detections.scientific_name,
+                   COUNT(DISTINCT detections.id) AS count,
                    COUNT(revisions.id) AS revcount
-            FROM [[observations]]
-            LEFT JOIN [[revisions]] ON revisions.observation_id = observations.id
-          sql_append: GROUP BY observations.common_name, observations.scientific_name ORDER BY count DESC
-      - else: SELECT [[observations]].id FROM [[observations]]
+            FROM [[detections]]
+            LEFT JOIN [[revisions]] ON revisions.observation_id = detections.id
+          sql_append: GROUP BY detections.common_name, detections.scientific_name ORDER BY count DESC
+      - else: SELECT [[detections]].id FROM [[detections]]
     query_params:
       - recording:
-          sql: "[[observations]].recording_id = {{recording}}"
-          multivalue_sql: "[[observations]].recording_id in {{recording}}"
+          sql: "[[detections]].recording_id = {{recording}}"
+          multivalue_sql: "[[detections]].recording_id in {{recording}}"
 
 query_params:
   - sort:
