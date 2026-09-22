@@ -1,11 +1,11 @@
 name: owl
-description: owl-model dev database - Version 4.0
+description: owl-model dev database - Version 5.0
 authors:
   - API Team
 
 tables:
   observations:
-    uri: s3://dse-soundhub/artifacts/run-98a5c16f-1015-481c-8ff1-2e0299813c58/observations/e67a614842b9bb7951a482539bc0cc2f78cbd317e213f377ec62f5a4b2cefbf0.parquet
+    uri: s3://dse-soundhub/artifacts/run-96ca354e-3653-4c98-86e0-80cc5b3702eb/detections/d06d60d5a949e31be081da9fa9c91fd2e926f77c79e41e7453f7292815ed879b.parquet
     region: us-west-2
     public: true
 
@@ -28,7 +28,15 @@ routes:
   - route: /observations/{{id}}
     sql: SELECT [[observations]].* FROM [[observations]] WHERE [[observations]].id = {{id}}
   - route: observations/
-    sql: SELECT [[observations]].id FROM [[observations]]
+    sql:
+      - when: count
+        then:
+          sql: >
+            SELECT observations.common_name, observations.scientific_name,
+                   COUNT(DISTINCT observations.id) AS count
+            FROM [[observations]]
+          sql_append: GROUP BY observations.common_name, observations.scientific_name ORDER BY count DESC
+      - else: SELECT [[observations]].id FROM [[observations]]
     query_params:
       - recording:
           sql: "[[observations]].recording_id = {{recording}}"

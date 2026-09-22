@@ -5,7 +5,7 @@ authors:
 
 tables:
   observations:
-    uri: s3://dse-soundhub/public/owl/v4/observations/results_p1-test/**/*.parquet
+    uri: s3://dse-soundhub/public/owl/v4/detections/results_p1-test/**/*.parquet
     region: us-west-2
     public: true
 
@@ -28,7 +28,15 @@ routes:
   - route: /observations/{{id}}
     sql: SELECT [[observations]].* FROM [[observations]] WHERE [[observations]].id = {{id}}
   - route: observations/
-    sql: SELECT [[observations]].id FROM [[observations]]
+    sql:
+      - when: count
+        then:
+          sql: >
+            SELECT observations.common_name, observations.scientific_name,
+                   COUNT(DISTINCT observations.id) AS count
+            FROM [[observations]]
+          sql_append: GROUP BY observations.common_name, observations.scientific_name ORDER BY count DESC
+      - else: SELECT [[observations]].id FROM [[observations]]
     query_params:
       - recording:
           sql: "[[observations]].recording_id = {{recording}}"
