@@ -5,7 +5,7 @@ authors:
 
 tables:
   detections:
-    uri: s3://dse-soundhub/artifacts/run-ee2e6559-d00a-4c27-a6ba-7baf97481fc4/detections/49d5c291983581c8efcdee92d7800d7d28c9be8213b45867a118626738450a77/**/*.parquet
+    uri: s3://dse-soundhub/artifacts/run-ee2e6559-d00a-4c27-a6ba-7baf97481fc4/detections/49d5c291983581c8efcdee92d7800d7d28c9be8213b45867a118626738450a77.parquet
     region: us-west-2
     public: true
 
