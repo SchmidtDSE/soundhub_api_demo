@@ -4,35 +4,35 @@ authors:
   - API Team
 
 tables:
-  detections:
-    uri: s3://dse-soundhub/artifacts/run-98a5c16f-1015-481c-8ff1-2e0299813c58/detections/e67a614842b9bb7951a482539bc0cc2f78cbd317e213f377ec62f5a4b2cefbf0.parquet
+  observations:
+    uri: s3://dse-soundhub/artifacts/run-98a5c16f-1015-481c-8ff1-2e0299813c58/observations/e67a614842b9bb7951a482539bc0cc2f78cbd317e213f377ec62f5a4b2cefbf0.parquet
     region: us-west-2
     public: true
 
 routes:
-  - route: /recordings/{{recording_id}}/detections/
-    sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].recording_id = {{recording_id}}
+  - route: /recordings/{{recording_id}}/observations/
+    sql: SELECT [[observations]].* FROM [[observations]] WHERE [[observations]].recording_id = {{recording_id}}
     query_params:
       - confidence:
-          sql: "[[detections]].confidence >= {{confidence}}"
+          sql: "[[observations]].confidence >= {{confidence}}"
       - scientific_name:
-          sql: "UPPER([[detections]].scientific_name) = UPPER('{{scientific_name}}')"
+          sql: "UPPER([[observations]].scientific_name) = UPPER('{{scientific_name}}')"
       - common_name:
-          sql: "UPPER([[detections]].common_name) = UPPER('{{common_name}}')"
+          sql: "UPPER([[observations]].common_name) = UPPER('{{common_name}}')"
       - rank:
-          sql: "[[detections]].rank = {{rank}}"
+          sql: "[[observations]].rank = {{rank}}"
       - start_time:
-          sql: "[[detections]].start_time >= {{start_time}}"
+          sql: "[[observations]].start_time >= {{start_time}}"
       - end_time:
-          sql: "[[detections]].end_time <= {{end_time}}"
-  - route: /detections/{{id}}
-    sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
-  - route: detections/
-    sql: SELECT [[detections]].id FROM [[detections]]
+          sql: "[[observations]].end_time <= {{end_time}}"
+  - route: /observations/{{id}}
+    sql: SELECT [[observations]].* FROM [[observations]] WHERE [[observations]].id = {{id}}
+  - route: observations/
+    sql: SELECT [[observations]].id FROM [[observations]]
     query_params:
       - recording:
-          sql: "[[detections]].recording_id = {{recording}}"
-          multivalue_sql: "[[detections]].recording_id in {{recording}}"
+          sql: "[[observations]].recording_id = {{recording}}"
+          multivalue_sql: "[[observations]].recording_id in {{recording}}"
 
 query_params:
   - sort:
