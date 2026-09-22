@@ -1,11 +1,11 @@
-name: birdnet
-description: BirdNET v2.4 detection database - Version 0.1
+name: owl
+description: owl-model dev database - Version 0.1
 authors:
   - API Team
 
 tables:
   detections:
-    uri: s3://dse-soundhub/artifacts/run-ee2e6559-d00a-4c27-a6ba-7baf97481fc4/detections/49d5c291983581c8efcdee92d7800d7d28c9be8213b45867a118626738450a77/**/*.parquet
+    uri: s3://dse-soundhub/artifacts/run-98a5c16f-1015-481c-8ff1-2e0299813c58/detections/e67a614842b9bb7951a482539bc0cc2f78cbd317e213f377ec62f5a4b2cefbf0/**/*.parquet
     region: us-west-2
     public: true
 
@@ -25,7 +25,7 @@ routes:
           sql: "[[detections]].start_time >= {{start_time}}"
       - end_time:
           sql: "[[detections]].end_time <= {{end_time}}"
-  - route: detections/{{id}}
+  - route: /detections/{{id}}
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
   - route: detections/
     sql: SELECT [[detections]].id FROM [[detections]]
@@ -43,3 +43,10 @@ query_params:
       sql_append: OFFSET {{offset}}
   - limit:
       sql_append: LIMIT {{limit}}
+
+
+
+
+
+
+
