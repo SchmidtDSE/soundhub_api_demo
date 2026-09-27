@@ -13,6 +13,9 @@ remotes:
 databases:
   - owl
   - birdnet
+  - birdnet-bullfrog
+  - birdnet-nutria
+  - perch-bullfrog
 
 # Non-remote endpoints (API Dock's own endpoints)
 endpoints:
