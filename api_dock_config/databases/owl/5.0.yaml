@@ -36,7 +36,7 @@ routes:
                    COUNT(DISTINCT detections.id) AS count
             FROM [[detections]]
           sql_append: GROUP BY detections.common_name, detections.scientific_name ORDER BY count DESC
-      - else: SELECT [[detections]].id FROM [[detections]]
+      - else: SELECT [[detections]].* FROM [[detections]]
     query_params:
       - recording:
           sql: "[[detections]].recording_id = {{recording}}"
