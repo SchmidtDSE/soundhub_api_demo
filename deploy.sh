@@ -7,8 +7,11 @@ ACCOUNT_ID="557418946771"
 ECR_REPO_NAME="soundhub-api"
 SERVICE_NAME="soundhub-api"
 PORT="8080"
-CPU="0.5 vCPU"
-MEMORY="1 GB"
+# 1 vCPU / 2 GB: DuckDB queries over the model databases need headroom (a full-table
+# COUNT(DISTINCT) once OOM-killed the old 0.5 vCPU / 1 GB instance). App Runner only
+# pairs 2 GB with 1 vCPU. Changing these updates the existing service on the next run.
+CPU="1 vCPU"
+MEMORY="2 GB"
 IMAGE_TAG="latest"
 
 ECR_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${ECR_REPO_NAME}"
@@ -93,6 +96,35 @@ echo "    Instance Role: ${INSTANCE_ROLE_ARN}"
 # ── Step 5: Create or update App Runner service ─────────────────────────────
 echo "==> Deploying App Runner service..."
 
+# One definition of the service configuration, used to create the service or to
+# update the existing one (so CPU/memory/health-check changes above always apply).
+SOURCE_CONFIGURATION="{
+    \"ImageRepository\": {
+        \"ImageIdentifier\": \"${ECR_URI}:${IMAGE_TAG}\",
+        \"ImageConfiguration\": {
+            \"Port\": \"${PORT}\"
+        },
+        \"ImageRepositoryType\": \"ECR\"
+    },
+    \"AutoDeploymentsEnabled\": false,
+    \"AuthenticationConfiguration\": {
+        \"AccessRoleArn\": \"${ECR_ROLE_ARN}\"
+    }
+}"
+INSTANCE_CONFIGURATION="{
+    \"Cpu\": \"${CPU}\",
+    \"Memory\": \"${MEMORY}\",
+    \"InstanceRoleArn\": \"${INSTANCE_ROLE_ARN}\"
+}"
+HEALTH_CHECK_CONFIGURATION='{
+    "Protocol": "HTTP",
+    "Path": "/",
+    "Interval": 10,
+    "Timeout": 5,
+    "HealthyThreshold": 1,
+    "UnhealthyThreshold": 5
+}'
+
 # Check if service already exists
 EXISTING_ARN=$(aws apprunner list-services \
     --region "$REGION" \
@@ -100,41 +132,25 @@ EXISTING_ARN=$(aws apprunner list-services \
     --output text 2>/dev/null || echo "None")
 
 if [ "$EXISTING_ARN" != "None" ] && [ -n "$EXISTING_ARN" ]; then
-    echo "    Service exists, triggering new deployment..."
-    aws apprunner start-deployment \
+    # update-service applies the configuration and deploys the new image in one
+    # operation (start-deployment alone would keep the old CPU/memory).
+    echo "    Service exists, updating configuration and deploying..."
+    aws apprunner update-service \
         --service-arn "$EXISTING_ARN" \
-        --region "$REGION"
+        --source-configuration "$SOURCE_CONFIGURATION" \
+        --instance-configuration "$INSTANCE_CONFIGURATION" \
+        --health-check-configuration "$HEALTH_CHECK_CONFIGURATION" \
+        --region "$REGION" \
+        --query 'Service.Status' \
+        --output text
     SERVICE_ARN="$EXISTING_ARN"
 else
     echo "    Creating new service..."
     SERVICE_ARN=$(aws apprunner create-service \
         --service-name "$SERVICE_NAME" \
-        --source-configuration "{
-            \"ImageRepository\": {
-                \"ImageIdentifier\": \"${ECR_URI}:${IMAGE_TAG}\",
-                \"ImageConfiguration\": {
-                    \"Port\": \"${PORT}\"
-                },
-                \"ImageRepositoryType\": \"ECR\"
-            },
-            \"AutoDeploymentsEnabled\": false,
-            \"AuthenticationConfiguration\": {
-                \"AccessRoleArn\": \"${ECR_ROLE_ARN}\"
-            }
-        }" \
-        --instance-configuration "{
-            \"Cpu\": \"${CPU}\",
-            \"Memory\": \"${MEMORY}\",
-            \"InstanceRoleArn\": \"${INSTANCE_ROLE_ARN}\"
-        }" \
-        --health-check-configuration '{
-            "Protocol": "HTTP",
-            "Path": "/",
-            "Interval": 10,
-            "Timeout": 5,
-            "HealthyThreshold": 1,
-            "UnhealthyThreshold": 5
-        }' \
+        --source-configuration "$SOURCE_CONFIGURATION" \
+        --instance-configuration "$INSTANCE_CONFIGURATION" \
+        --health-check-configuration "$HEALTH_CHECK_CONFIGURATION" \
         --region "$REGION" \
         --query 'Service.ServiceArn' \
         --output text)
