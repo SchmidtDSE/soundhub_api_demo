@@ -30,3 +30,10 @@ restricted:
 settings:
     add_trailing_slash: false
     follow_redirects: false
+
+# Expose Proxy Structure
+expose:
+  dict: false
+  remotes: true
+  databases: true
+  sources: true

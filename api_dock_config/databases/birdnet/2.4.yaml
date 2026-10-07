@@ -16,19 +16,6 @@ tables:
 routes:
   - route: /recordings/{{recording_id}}/detections/
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].recording_id = {{recording_id}}
-    query_params:
-      - confidence:
-          sql: "[[detections]].confidence >= {{confidence}}"
-      - scientific_name:
-          sql: "UPPER([[detections]].scientific_name) = UPPER('{{scientific_name}}')"
-      - common_name:
-          sql: "UPPER([[detections]].common_name) = UPPER('{{common_name}}')"
-      - rank:
-          sql: "[[detections]].rank = {{rank}}"
-      - start_time:
-          sql: "[[detections]].start_time >= {{start_time}}"
-      - end_time:
-          sql: "[[detections]].end_time <= {{end_time}}"
   - route: detections/{{id}}
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
   - route: detections/
@@ -48,7 +35,21 @@ routes:
           sql: "[[detections]].recording_id = {{recording}}"
           multivalue_sql: "[[detections]].recording_id in {{recording}}"
 
+# Filters applied to every route (WHERE fragments are built before any
+# GROUP BY in a route's sql_append, so they also apply to count queries)
 query_params:
+  - confidence:
+      sql: "[[detections]].confidence >= {{confidence}}"
+  - scientific_name:
+      sql: "UPPER([[detections]].scientific_name) = UPPER('{{scientific_name}}')"
+  - common_name:
+      sql: "UPPER([[detections]].common_name) = UPPER('{{common_name}}')"
+  - rank:
+      sql: "[[detections]].rank <= {{rank}}"
+  - start_time:
+      sql: "[[detections]].start_time >= {{start_time}}"
+  - end_time:
+      sql: "[[detections]].end_time <= {{end_time}}"
   - sort:
       sql_append: ORDER BY {{sort}} {{direction}}
   - direction:
