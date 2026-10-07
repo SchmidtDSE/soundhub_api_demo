@@ -3,11 +3,7 @@ description: owl-model dev database - Version 5.0
 authors:
   - API Team
 
-tables:
-  detections:
-    uri: s3://dse-soundhub/artifacts/run-96ca354e-3653-4c98-86e0-80cc5b3702eb/detections/d06d60d5a949e31be081da9fa9c91fd2e926f77c79e41e7453f7292815ed879b.parquet
-    region: us-west-2
-    public: true
+schema: owl_5p0
 
 routes:
   - route: /recordings/{{recording_id}}/detections/

@@ -3,11 +3,7 @@ description: American Bullfrog Classifier from Birdnet 2.4
 authors:
   - API Team
 
-tables:
-  detections:
-    uri: s3://dse-soundhub/artifacts/run-29ec22ae-456d-43cc-a437-d0863ddece4a/detections/9531a8b6e3b2c1720267e77dc8117fbb9715d0c8b8f96ee61de386f1383ecf8e.parquet
-    region: us-west-2
-    public: true
+schema: birdnet_bullfrog_2p4v0p5
 
 routes:
   - route: /recordings/{{recording_id}}/detections/

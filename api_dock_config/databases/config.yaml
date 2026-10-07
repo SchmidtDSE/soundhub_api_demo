@@ -1,0 +1,30 @@
+# Shared tables for every database/version config.
+# Each version config selects its schema with `schema: <name>`, so [[detections]]
+# resolves to that schema's table. Any route can also reference another model's
+# tables directly, e.g. [[owl_5p0.detections]].
+database:
+  # defaults for every table (a table's own keys override these)
+  meta:
+    region: us-west-2
+    public: true
+  schema:
+    birdnet_2p4:  # birdnet/2.4
+      detections:
+        uri: s3://dse-soundhub/artifacts/run-ee2e6559-d00a-4c27-a6ba-7baf97481fc4/detections/49d5c291983581c8efcdee92d7800d7d28c9be8213b45867a118626738450a77.parquet
+      revisions:
+        uri: s3://dse-soundhub/public/dev/dummy/fake_revisions.bn2p4.parquet
+    birdnet_bullfrog_2p4v0p5:  # birdnet-bullfrog/2.4v0.5
+      detections:
+        uri: s3://dse-soundhub/artifacts/run-29ec22ae-456d-43cc-a437-d0863ddece4a/detections/9531a8b6e3b2c1720267e77dc8117fbb9715d0c8b8f96ee61de386f1383ecf8e.parquet
+    birdnet_nutria_2p4v0p5:  # birdnet-nutria/2.4v0.5
+      detections:
+        uri: s3://dse-soundhub/artifacts/run-0eb5a647-a9c5-47f5-aaf8-81a89bc1f9d6/detections/54eceae61b2989d1b1d7d241cb0da2889b7e32e7f82c4830c567c0ea31ec8cff.parquet
+    owl_4p0:  # owl/4.0
+      detections:
+        uri: s3://dse-soundhub/public/owl/v4/detections/results_p1-test/**/*.parquet
+    owl_5p0:  # owl/5.0
+      detections:
+        uri: s3://dse-soundhub/artifacts/run-96ca354e-3653-4c98-86e0-80cc5b3702eb/detections/d06d60d5a949e31be081da9fa9c91fd2e926f77c79e41e7453f7292815ed879b.parquet
+    perch_bullfrog_8p0v0p5:  # perch-bullfrog/8.0v0.5
+      detections:
+        uri: s3://dse-soundhub/artifacts/run-a2688278-4931-4e99-9d98-7aab2a431af5/detections/05c9b543bf8685dbd15ebc0936e3197febc3ce843435755d635366b157350150.parquet

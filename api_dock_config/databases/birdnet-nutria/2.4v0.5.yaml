@@ -3,11 +3,7 @@ description: Nutria Classifier from Birdnet 2.4
 authors:
   - API Team
 
-tables:
-  detections:
-    uri: s3://dse-soundhub/artifacts/run-0eb5a647-a9c5-47f5-aaf8-81a89bc1f9d6/detections/54eceae61b2989d1b1d7d241cb0da2889b7e32e7f82c4830c567c0ea31ec8cff.parquet
-    region: us-west-2
-    public: true
+schema: birdnet_nutria_2p4v0p5
 
 routes:
   - route: /recordings/{{recording_id}}/detections/

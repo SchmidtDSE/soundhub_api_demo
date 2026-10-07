@@ -3,11 +3,7 @@ description: American Bullfrog Classifier from Perch 8.0
 authors:
   - API Team
 
-tables:
-  detections:
-    uri: s3://dse-soundhub/artifacts/run-a2688278-4931-4e99-9d98-7aab2a431af5/detections/05c9b543bf8685dbd15ebc0936e3197febc3ce843435755d635366b157350150.parquet
-    region: us-west-2
-    public: true
+schema: perch_bullfrog_8p0v0p5
 
 routes:
   - route: /recordings/{{recording_id}}/detections/
