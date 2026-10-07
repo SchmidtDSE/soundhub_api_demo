@@ -30,6 +30,14 @@ restricted:
 settings:
     add_trailing_slash: false
     follow_redirects: false
+    # DuckDB options for every database query (needs api_dock >= 0.8.2; older versions
+    # ignore it). Sized for the 1 vCPU / 2 GB App Runner instance: at most 2 queries at
+    # once x 600MB each, leaving room for Python. Over the limit DuckDB spills to disk
+    # or fails that one query instead of the instance being OOM-killed.
+    duckdb:
+      memory_limit: 600MB
+      threads: 2
+      max_concurrent_queries: 2
 
 # Expose Proxy Structure
 expose:
