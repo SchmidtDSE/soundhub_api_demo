@@ -29,7 +29,49 @@ database:
       detections:
         uri: s3://dse-soundhub/artifacts/run-a2688278-4931-4e99-9d98-7aab2a431af5/detections/05c9b543bf8685dbd15ebc0936e3197febc3ce843435755d635366b157350150.parquet
 
-# Added to every model/version (a version config's own route with the same shape
+# Named groups of schemas: [[all_models.detections]] reads all of them, and
+# [[all_models!.detections]] skips the current model/version's schema.
+schema_groups:
+  all_models:
+    - birdnet_2p4
+    - birdnet_bullfrog_2p4v0p5
+    - birdnet_nutria_2p4v0p5
+    - owl_4p0
+    - owl_5p0
+    - perch_bullfrog_8p0v0p5
+  bullfrog_models:
+    - birdnet_bullfrog_2p4v0p5
+    - perch_bullfrog_8p0v0p5
+
+# model/versions are added here although they can also be added explicity through config files
+# - ex: api_dock_config/databases/<model>/{0.3|0.4|0.5}.yaml
+slugs:
+  - name: owl
+    versions:
+      - version: "4.0"
+        description: owl-model dev database - Version 0.1
+        schema: owl_4p0
+      - version: "5.0"
+        description: owl-model dev database - Version 5.0
+        schema: owl_5p0
+  - name: birdnet
+    version: "2.4"
+    description: BirdNET v2.4 detection database - Version 0.1
+    schema: birdnet_2p4
+  - name: birdnet-bullfrog
+    version: "2.4v0.5"
+    description: American Bullfrog Classifier from Birdnet 2.4
+    schema: birdnet_bullfrog_2p4v0p5
+  - name: birdnet-nutria
+    version: "2.4v0.5"
+    description: Nutria Classifier from Birdnet 2.4
+    schema: birdnet_nutria_2p4v0p5
+  - name: perch-bullfrog
+    version: "8.0v0.5"
+    description: American Bullfrog Classifier from Perch 8.0
+    schema: perch_bullfrog_8p0v0p5
+
+# Added to every model/version (a model/version's own route with the same shape
 # replaces the shared one). `include`/`exclude` limit a route to / skip it for
 # listed model/versions: detections/ has a birdnet/2.4-only count with revisions.
 routes:
@@ -37,6 +79,39 @@ routes:
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].recording_id = {{recording_id}}
   - route: /detections/{{id}}
     sql: SELECT [[detections]].* FROM [[detections]] WHERE [[detections]].id = {{id}}
+  # Overlaps: every detection, from any model/version (including this one), on the same
+  # recording whose [start_time, end_time) overlaps this detection's, except this
+  # detection itself (what /detections/{{id}} returns). Other overlapping detections
+  # from this model/version (e.g. other ranks in the same window) ARE included.
+  # The source row is matched on schema + id: ids like 1_t18660p0_r1 repeat across
+  # models, so excluding on id alone would drop other models' detections too.
+  # Each row says which model/version it came from (schema_name, name, version).
+  - route: /detections/{{id}}/overlaps
+    source_columns: [schema, name, version]
+    sql: |
+      WITH src AS (
+        SELECT recording_id, start_time, end_time FROM [[detections]] WHERE id = {{id}}
+      )
+      SELECT detections.*
+      FROM [[*.detections]] detections
+      JOIN src ON detections.recording_id = src.recording_id
+              AND detections.start_time < src.end_time
+              AND detections.end_time   > src.start_time
+      WHERE NOT (detections.schema_name = {{self.schema}} AND detections.id = {{id}})
+  # Same route limited to a schema group (see schema_groups above). To use it, comment
+  # out the route above and uncomment this one.
+  # - route: /detections/{{id}}/overlaps
+  #   source_columns: [schema, name, version]
+  #   sql: |
+  #     WITH src AS (
+  #       SELECT recording_id, start_time, end_time FROM [[detections]] WHERE id = {{id}}
+  #     )
+  #     SELECT detections.*
+  #     FROM [[all_models.detections]] detections
+  #     JOIN src ON detections.recording_id = src.recording_id
+  #             AND detections.start_time < src.end_time
+  #             AND detections.end_time   > src.start_time
+  #     WHERE NOT (detections.schema_name = {{self.schema}} AND detections.id = {{id}})
   - route: detections/
     exclude: ['birdnet/2.4']
     sql:

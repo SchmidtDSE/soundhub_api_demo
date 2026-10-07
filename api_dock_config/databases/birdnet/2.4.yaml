@@ -1,6 +1,0 @@
-name: birdnet
-description: BirdNET v2.4 detection database - Version 0.1
-authors:
-  - API Team
-
-schema: birdnet_2p4

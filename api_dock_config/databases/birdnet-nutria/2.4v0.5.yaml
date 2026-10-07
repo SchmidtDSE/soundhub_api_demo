@@ -1,6 +1,0 @@
-name: birdnet-Nutria
-description: Nutria Classifier from Birdnet 2.4
-authors:
-  - API Team
-
-schema: birdnet_nutria_2p4v0p5
