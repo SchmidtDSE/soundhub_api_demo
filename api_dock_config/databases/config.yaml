@@ -119,7 +119,7 @@ routes:
         then:
           sql: >
             SELECT detections.common_name, detections.scientific_name,
-                   COUNT(DISTINCT detections.id) AS count
+                   COUNT(*) AS count
             FROM [[detections]]
           sql_append: GROUP BY detections.common_name, detections.scientific_name ORDER BY count DESC
       - else: SELECT [[detections]].* FROM [[detections]]
@@ -132,12 +132,17 @@ routes:
     sql:
       - when: count
         then:
+          # Revisions are counted per detection before the join, so each detection stays one
+          # row and COUNT(*) works. COUNT(DISTINCT id) over the joined rows gives the same
+          # numbers but needs ~10x the memory (it OOM-killed the 1 GB App Runner instance).
           sql: >
             SELECT detections.common_name, detections.scientific_name,
-                   COUNT(DISTINCT detections.id) AS count,
-                   COUNT(revisions.id) AS revcount
+                   COUNT(*) AS count,
+                   COALESCE(SUM(revisions.revcount), 0) AS revcount
             FROM [[detections]]
-            LEFT JOIN [[revisions]] ON revisions.observation_id = detections.id
+            LEFT JOIN (
+              SELECT observation_id, COUNT(*) AS revcount FROM [[revisions]] GROUP BY observation_id
+            ) revisions ON revisions.observation_id = detections.id
           sql_append: GROUP BY detections.common_name, detections.scientific_name ORDER BY count DESC
       - else: SELECT [[detections]].* FROM [[detections]]
     query_params:
