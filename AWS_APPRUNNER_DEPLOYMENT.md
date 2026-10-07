@@ -129,8 +129,8 @@ aws apprunner create-service \
         }
     }' \
     --instance-configuration '{
-        "Cpu": "0.5 vCPU",
-        "Memory": "1 GB",
+        "Cpu": "1 vCPU",
+        "Memory": "2 GB",
         "InstanceRoleArn": "'$INSTANCE_ROLE_ARN'"
     }' \
     --health-check-configuration '{
@@ -173,7 +173,13 @@ docker push 557418946771.dkr.ecr.us-west-2.amazonaws.com/soundhub-api:latest
 aws apprunner start-deployment --service-arn $SERVICE_ARN --region us-west-2
 ```
 
-Or just run `./deploy.sh` again — it detects the existing service and triggers `start-deployment`.
+Or just run `./deploy.sh` again. It detects the existing service and runs `update-service` with the CPU/memory/health-check settings at the top of the script plus the newly pushed image, so size changes in `deploy.sh` take effect too.
+
+**Before deploying a new api_dock release**, refresh the lock file so the image gets it (the Dockerfile installs exactly what `pixi.lock` pins):
+
+```bash
+pixi update api_dock      # or: pixi install, after changing the api_dock pin in pyproject.toml
+```
 
 ## Service Management
 
@@ -244,10 +250,36 @@ docker run -p 8080:8080 \
 curl http://localhost:8080/
 ```
 
+## Serving under the website's domain (CloudFront)
+
+Browsers call the API through a path on the website's own domain (like `/api` today),
+routed by the website's CloudFront distribution to this App Runner service. It's
+same-origin, so no CORS is needed and the session cookie reaches the `core/...` routes.
+
+CloudFront behavior (on the website's distribution):
+
+| Setting | Value |
+|---|---|
+| Path pattern | `/dock/*` (match the frontend's dev-proxy prefix) |
+| Origin | `eshpezgjnn.us-west-2.awsapprunner.com`, HTTPS only |
+| Cache policy | `CachingDisabled` |
+| Origin request policy | `AllViewerExceptHostHeader` (App Runner routes by its own Host header) |
+| Allowed methods | `GET, HEAD, OPTIONS` |
+| Origin response timeout | 60 s (default 30 s; cross-model queries can take several seconds) |
+
+CloudFront forwards the path unchanged (`/dock/birdnet/latest/detections/`). Set the same
+prefix as `base_path` in `api_dock_config/config.yaml` (api_dock >= 0.8.2) so the service
+accepts it; unprefixed paths keep working for direct calls and health checks:
+
+```yaml
+settings:
+  base_path: /dock
+```
+
 ## Cost Estimate
 
 | Resource | Config | Approximate Cost |
 |----------|--------|-----------------|
-| App Runner | 0.5 vCPU, 1 GB, provisioned | ~$15-25/month active |
+| App Runner | 1 vCPU, 2 GB, 1 provisioned instance | $10.22/month idle (memory) + $0.064 per hour spent serving requests; ~$14/month at ~2 busy hours/day, $56.94/month if busy 24/7 |
 | App Runner (paused) | — | $0 compute |
 | ECR | Image storage | < $1/month |
