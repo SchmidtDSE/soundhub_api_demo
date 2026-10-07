@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "soundhub_api"
 version = "0.0.1"
 readme = "README.md"
-dependencies = ["api_dock>=0.8.1,<0.9.0"]
+dependencies = ["api_dock>=0.8.2,<0.9.0"]
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
