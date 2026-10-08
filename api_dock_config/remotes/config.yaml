@@ -1,0 +1,7 @@
+remotes:
+  core:
+    description: "Soundhub API"
+    versions:
+      - version: 1.0
+        url: https://api.dev.wildlifesoundhub.org
+        description: "Soundhub API version 1.0"
