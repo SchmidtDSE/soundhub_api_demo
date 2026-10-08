@@ -1,6 +1,7 @@
 remotes:
   core:
     description: "Soundhub API"
+    cookies: [__Secure-authjs.session-token]
     versions:
       - version: 1.0
         url: https://api.dev.wildlifesoundhub.org
