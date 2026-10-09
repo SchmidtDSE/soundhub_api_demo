@@ -12,7 +12,13 @@ PORT="8080"
 # pairs 2 GB with 1 vCPU. Changing these updates the existing service on the next run.
 CPU="1 vCPU"
 MEMORY="2 GB"
-IMAGE_TAG="latest"
+# A unique tag per build (commit + UTC time, "-dirty" with uncommitted changes),
+# so App Runner always sees a new image and deploys it. With a fixed tag such as
+# `latest`, update-service sees no change and keeps running the old image.
+# Override with IMAGE_TAG=... ./deploy.sh
+GIT_SHA=$(git rev-parse --short HEAD 2>/dev/null || echo "nogit")
+if [ -n "$(git status --porcelain 2>/dev/null)" ]; then GIT_SHA="${GIT_SHA}-dirty"; fi
+IMAGE_TAG="${IMAGE_TAG:-${GIT_SHA}-$(date -u +%Y%m%d%H%M%S)}"
 
 ECR_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${ECR_REPO_NAME}"
 
@@ -33,11 +39,13 @@ aws ecr get-login-password --region "$REGION" | \
     "${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
 
 # ── Step 3: Build and push Docker image ─────────────────────────────────────
-echo "==> Building Docker image (linux/amd64)..."
-docker buildx build --platform=linux/amd64 -t "${ECR_URI}:${IMAGE_TAG}" .
+echo "==> Building Docker image (linux/amd64), tag ${IMAGE_TAG}..."
+docker buildx build --platform=linux/amd64 \
+    -t "${ECR_URI}:${IMAGE_TAG}" -t "${ECR_URI}:latest" .
 
 echo "==> Pushing image to ECR..."
 docker push "${ECR_URI}:${IMAGE_TAG}"
+docker push "${ECR_URI}:latest"
 
 # ── Step 4: Create IAM roles (idempotent) ────────────────────────────────────
 echo "==> Setting up IAM roles..."
@@ -132,50 +140,58 @@ EXISTING_ARN=$(aws apprunner list-services \
     --output text 2>/dev/null || echo "None")
 
 if [ "$EXISTING_ARN" != "None" ] && [ -n "$EXISTING_ARN" ]; then
-    # update-service applies the configuration and deploys the new image in one
-    # operation (start-deployment alone would keep the old CPU/memory).
+    # update-service applies the configuration and, because the image tag is new,
+    # deploys the new image in one operation (start-deployment alone would keep
+    # the old CPU/memory).
     echo "    Service exists, updating configuration and deploying..."
-    aws apprunner update-service \
+    read -r SERVICE_ARN OPERATION_ID < <(aws apprunner update-service \
         --service-arn "$EXISTING_ARN" \
         --source-configuration "$SOURCE_CONFIGURATION" \
         --instance-configuration "$INSTANCE_CONFIGURATION" \
         --health-check-configuration "$HEALTH_CHECK_CONFIGURATION" \
         --region "$REGION" \
-        --query 'Service.Status' \
-        --output text
-    SERVICE_ARN="$EXISTING_ARN"
+        --query '[Service.ServiceArn, OperationId]' \
+        --output text)
 else
     echo "    Creating new service..."
-    SERVICE_ARN=$(aws apprunner create-service \
+    read -r SERVICE_ARN OPERATION_ID < <(aws apprunner create-service \
         --service-name "$SERVICE_NAME" \
         --source-configuration "$SOURCE_CONFIGURATION" \
         --instance-configuration "$INSTANCE_CONFIGURATION" \
         --health-check-configuration "$HEALTH_CHECK_CONFIGURATION" \
         --region "$REGION" \
-        --query 'Service.ServiceArn' \
+        --query '[Service.ServiceArn, OperationId]' \
         --output text)
 fi
 
-echo "    Service ARN: ${SERVICE_ARN}"
+if [ -z "${SERVICE_ARN:-}" ] || [ -z "${OPERATION_ID:-}" ] || [ "$OPERATION_ID" = "None" ]; then
+    echo "ERROR: App Runner didn't start a deployment (see the AWS error above)"
+    exit 1
+fi
+echo "    Service ARN:  ${SERVICE_ARN}"
+echo "    Operation ID: ${OPERATION_ID}"
 
-# ── Step 6: Poll until RUNNING ──────────────────────────────────────────────
-echo "==> Waiting for service to reach RUNNING status..."
+# ── Step 6: Wait for the deployment operation ───────────────────────────────
+# Wait for this operation itself: the service status can read RUNNING before the
+# operation starts, and again after a failed deployment is rolled back.
+echo "==> Waiting for the deployment to finish..."
 
 while true; do
-    STATUS=$(aws apprunner describe-service \
+    OPERATION_STATUS=$(aws apprunner list-operations \
         --service-arn "$SERVICE_ARN" \
         --region "$REGION" \
-        --query 'Service.Status' \
+        --query "OperationSummaryList[?Id=='${OPERATION_ID}'].Status | [0]" \
         --output text)
 
-    echo "    Status: ${STATUS}"
+    echo "    Operation: ${OPERATION_STATUS}"
 
-    if [ "$STATUS" = "RUNNING" ]; then
-        break
-    elif [ "$STATUS" = "CREATE_FAILED" ] || [ "$STATUS" = "DELETE_FAILED" ]; then
-        echo "ERROR: Service reached ${STATUS} state"
-        exit 1
-    fi
+    case "$OPERATION_STATUS" in
+        SUCCEEDED)
+            break ;;
+        FAILED|ROLLBACK_SUCCEEDED|ROLLBACK_FAILED)
+            echo "ERROR: deployment ${OPERATION_STATUS}; check the service's logs in the App Runner console"
+            exit 1 ;;
+    esac
 
     sleep 15
 done
@@ -187,7 +203,14 @@ SERVICE_URL=$(aws apprunner describe-service \
     --query 'Service.ServiceUrl' \
     --output text)
 
+DEPLOYED_IMAGE=$(aws apprunner describe-service \
+    --service-arn "$SERVICE_ARN" \
+    --region "$REGION" \
+    --query 'Service.SourceConfiguration.ImageRepository.ImageIdentifier' \
+    --output text)
+
 echo ""
 echo "==> Deployment complete!"
+echo "    Image: ${DEPLOYED_IMAGE}"
 echo "    URL: https://${SERVICE_URL}/"
 echo "    Test: curl \"https://${SERVICE_URL}/owl/latest/recordings/3/detections?limit=5&sort=confidence&direction=desc\""
