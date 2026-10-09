@@ -173,7 +173,9 @@ docker push 557418946771.dkr.ecr.us-west-2.amazonaws.com/soundhub-api:latest
 aws apprunner start-deployment --service-arn $SERVICE_ARN --region us-west-2
 ```
 
-Or just run `./deploy.sh` again. It detects the existing service and runs `update-service` with the CPU/memory/health-check settings at the top of the script plus the newly pushed image, so size changes in `deploy.sh` take effect too.
+Or just run `./deploy.sh` again. It tags each image uniquely (`<commit>[-dirty]-<UTC time>`, and also pushes `latest`), then runs `update-service` with that image and the CPU/memory/health-check settings at the top of the script, so both new code/config and size changes take effect. It waits for that deployment operation to succeed (and exits with an error if it fails or is rolled back), then prints the running image.
+
+A fixed tag isn't enough on its own: `update-service` with the same image name and settings starts no deployment, so App Runner keeps the old image. With a fixed tag, use `start-deployment` as above.
 
 **Before deploying a new api_dock release**, refresh the lock file so the image gets it (the Dockerfile installs exactly what `pixi.lock` pins):
 
