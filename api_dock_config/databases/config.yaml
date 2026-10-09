@@ -92,7 +92,7 @@ routes:
       WITH src AS (
         SELECT recording_id, start_time, end_time FROM [[detections]] WHERE id = {{id}}
       )
-      SELECT detections.*
+      SELECT detections.* EXCLUDE (schema_name)
       FROM [[*.detections]] detections
       JOIN src ON detections.recording_id = src.recording_id
               AND detections.start_time < src.end_time
