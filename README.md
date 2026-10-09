@@ -97,7 +97,7 @@ Deploy the API to AWS App Runner for public access. See [AWS_APPRUNNER_DEPLOYMEN
 
 The script is idempotent — it creates ECR, IAM roles, and the App Runner service on first run, and triggers a redeployment on subsequent runs. It builds with `--platform=linux/amd64` and binds to port 8080 (required by App Runner). 
 
-To redeploy after changes simply run `./deploy.sh` again. It detects the existing service and calls `start-deployment`.
+To redeploy after changes simply run `./deploy.sh` again. It tags the image with the git commit and time (plus `-dirty` with uncommitted changes), updates the existing service to that image, waits for the deployment to finish, and prints the image that is running.
 
 ### Manage the Service
 
