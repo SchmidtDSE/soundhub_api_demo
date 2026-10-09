@@ -23,8 +23,8 @@ This repo extends the soundhub-api, using [api-dock](https://github.com/SchmidtD
 - `scientific_name` - Filter by scientific name (case-insensitive)
 - `common_name` - Filter by common name (case-insensitive)
 - `rank` - Filter by detection rank
-- `start_time` - Filter by minimum start time
-- `end_time` - Filter by maximum end time
+- `start_time` - Minimum start time, in **seconds from the start of the recording** (e.g. `start_time=30`); not a date or timestamp
+- `end_time` - Maximum end time, in seconds from the start of the recording (e.g. `end_time=60`)
 - `sort` - Sort field for results
 - `direction` - Sort direction (ASC/DESC, default: ASC)
 - `offset` - Number of results to skip
