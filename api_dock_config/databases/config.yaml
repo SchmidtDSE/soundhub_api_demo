@@ -13,10 +13,10 @@ database:
         uri: s3://dse-soundhub/artifacts/run-ee2e6559-d00a-4c27-a6ba-7baf97481fc4/detections/49d5c291983581c8efcdee92d7800d7d28c9be8213b45867a118626738450a77.parquet
       revisions:
         uri: s3://dse-soundhub/public/dev/dummy/fake_revisions.bn2p4.parquet
-    birdnet_bullfrog_2p4v0p5:  # birdnet-bullfrog/2.4v0.5
+    birdnet_bullfrog_2p4v0p5:  # birdnet/2.4/bullfrog/0.5
       detections:
         uri: s3://dse-soundhub/artifacts/run-29ec22ae-456d-43cc-a437-d0863ddece4a/detections/9531a8b6e3b2c1720267e77dc8117fbb9715d0c8b8f96ee61de386f1383ecf8e.parquet
-    birdnet_nutria_2p4v0p5:  # birdnet-nutria/2.4v0.5
+    birdnet_nutria_2p4v0p5:  # birdnet/2.4/nutria/0.5
       detections:
         uri: s3://dse-soundhub/artifacts/run-0eb5a647-a9c5-47f5-aaf8-81a89bc1f9d6/detections/54eceae61b2989d1b1d7d241cb0da2889b7e32e7f82c4830c567c0ea31ec8cff.parquet
     owl_4p0:  # owl/4.0
@@ -25,7 +25,7 @@ database:
     owl_5p0:  # owl/5.0
       detections:
         uri: s3://dse-soundhub/artifacts/run-96ca354e-3653-4c98-86e0-80cc5b3702eb/detections/d06d60d5a949e31be081da9fa9c91fd2e926f77c79e41e7453f7292815ed879b.parquet
-    perch_bullfrog_8p0v0p5:  # perch-bullfrog/8.0v0.5
+    perch_bullfrog_8p0v0p5:  # perch/8.0/bullfrog/0.5
       detections:
         uri: s3://dse-soundhub/artifacts/run-a2688278-4931-4e99-9d98-7aab2a431af5/detections/05c9b543bf8685dbd15ebc0936e3197febc3ce843435755d635366b157350150.parquet
 
@@ -58,16 +58,18 @@ slugs:
     version: "2.4"
     description: BirdNET v2.4 detection database - Version 0.1
     schema: birdnet_2p4
-  - name: birdnet-bullfrog
-    version: "2.4v0.5"
+  # Transfer-learning models are nested under the model/version they build on:
+  # /birdnet/2.4/bullfrog/0.5/... (name birdnet/2.4/bullfrog, version 0.5)
+  - name: birdnet/2.4/bullfrog
+    version: "0.5"
     description: American Bullfrog Classifier from Birdnet 2.4
     schema: birdnet_bullfrog_2p4v0p5
-  - name: birdnet-nutria
-    version: "2.4v0.5"
+  - name: birdnet/2.4/nutria
+    version: "0.5"
     description: Nutria Classifier from Birdnet 2.4
     schema: birdnet_nutria_2p4v0p5
-  - name: perch-bullfrog
-    version: "8.0v0.5"
+  - name: perch/8.0/bullfrog
+    version: "0.5"
     description: American Bullfrog Classifier from Perch 8.0
     schema: perch_bullfrog_8p0v0p5
 

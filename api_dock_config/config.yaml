@@ -7,15 +7,9 @@ authors:
   - url: https://dse.berkeley.edu/
     email: bguzder-williams@berkeley.edu 
 
-remotes:
-  - core
-
-databases:
-  - owl
-  - birdnet
-  - birdnet-bullfrog
-  - birdnet-nutria
-  - perch-bullfrog
+# No remotes/databases lists: api_dock (>= 0.11.0) serves every remote and database
+# in remotes/ and databases/ (files, version folders, remotes/config.yaml, slugs).
+# To keep one out, add it to `excluded_remotes:` / `excluded_databases:`.
 
 # Non-remote endpoints (API Dock's own endpoints)
 endpoints:
